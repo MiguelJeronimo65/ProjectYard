@@ -22,25 +22,43 @@ CREATE TABLE tenants (
   UNIQUE KEY uq_tenant_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- A tabela `users` é o STORE de utilizadores do ASP.NET Identity (mapeada via ToTable("users"), chave BIGINT).
+-- Colunas Identity em snake_case (mapeadas no DbContext). Colunas de domínio ProjectYard mantidas.
 CREATE TABLE users (
-  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  tenant_id       BIGINT NULL,                       -- NULL = utilizador de plataforma
-  name            VARCHAR(160) NOT NULL,
-  email           VARCHAR(190) NOT NULL,
-  phone           VARCHAR(40)  NULL,
-  user_type       ENUM('platform','tenant') NOT NULL DEFAULT 'tenant',
-  role            ENUM('Superadmin','Owner','Administrador','Gestor','Membro','Cliente') NOT NULL DEFAULT 'Membro',
-  is_superadmin   TINYINT(1) NOT NULL DEFAULT 0,
-  is_tenant_admin TINYINT(1) NOT NULL DEFAULT 0,
-  funcao          VARCHAR(120) NULL,                 -- cargo (ex.: Arquiteto Sénior)
-  cost_hour       DECIMAL(8,2) NULL,                 -- Custo Hora (€)
-  status          ENUM('Ativo','Pendente','Inativo') NOT NULL DEFAULT 'Pendente',
-  active          TINYINT(1) NOT NULL DEFAULT 1,
-  avatar_url      VARCHAR(255) NULL,
-  last_active_at  DATETIME NULL,
-  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_user_email (tenant_id, email),
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id              BIGINT NULL,                       -- NULL = utilizador de plataforma
+  name                   VARCHAR(160) NOT NULL,             -- nome a mostrar (não é do Identity)
+  -- ---- ASP.NET Identity (IdentityUser<long>) ----
+  user_name              VARCHAR(256) NULL,                 -- UserName
+  normalized_user_name   VARCHAR(256) NULL,                 -- NormalizedUserName
+  email                  VARCHAR(190) NOT NULL,             -- Email
+  normalized_email       VARCHAR(190) NULL,                 -- NormalizedEmail
+  email_confirmed        TINYINT(1) NOT NULL DEFAULT 0,     -- EmailConfirmed
+  password_hash          VARCHAR(255) NULL,                 -- PasswordHash (NULL enquanto convite pendente)
+  security_stamp         VARCHAR(255) NULL,                 -- SecurityStamp
+  concurrency_stamp      VARCHAR(255) NULL,                 -- ConcurrencyStamp (token de concorrência)
+  phone                  VARCHAR(40)  NULL,                 -- PhoneNumber
+  phone_number_confirmed TINYINT(1) NOT NULL DEFAULT 0,     -- PhoneNumberConfirmed
+  two_factor_enabled     TINYINT(1) NOT NULL DEFAULT 0,     -- TwoFactorEnabled
+  lockout_enabled        TINYINT(1) NOT NULL DEFAULT 1,     -- LockoutEnabled
+  locked_until           DATETIME(6) NULL,                  -- LockoutEnd (DateTimeOffset)
+  failed_attempts        INT NOT NULL DEFAULT 0,            -- AccessFailedCount
+  -- ---- Domínio ProjectYard ----
+  user_type              ENUM('platform','tenant') NOT NULL DEFAULT 'tenant',
+  role                   ENUM('Superadmin','Owner','Administrador','Gestor','Membro','Cliente') NOT NULL DEFAULT 'Membro', -- denormalizado; autorização efetiva via user_roles
+  is_superadmin          TINYINT(1) NOT NULL DEFAULT 0,
+  is_tenant_admin        TINYINT(1) NOT NULL DEFAULT 0,
+  funcao                 VARCHAR(120) NULL,                 -- cargo (ex.: Arquiteto Sénior)
+  cost_hour              DECIMAL(8,2) NULL,                 -- Custo Hora (€)
+  status                 ENUM('Ativo','Pendente','Inativo') NOT NULL DEFAULT 'Pendente',
+  active                 TINYINT(1) NOT NULL DEFAULT 1,
+  avatar_url             VARCHAR(255) NULL,
+  last_active_at         DATETIME NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_email (tenant_id, email),               -- email único por tenant (regra multi-tenant)
   KEY ix_user_tenant (tenant_id),
+  KEY ix_user_norm_username (normalized_user_name),          -- lookup do Identity (NÃO único: ver nota multi-tenant)
+  KEY ix_user_norm_email (normalized_email),
   CONSTRAINT fk_user_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -61,6 +79,64 @@ CREATE TABLE user_invites (
   KEY ix_invite_tenant (tenant_id),
   CONSTRAINT fk_invite_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_invite_user FOREIGN KEY (invited_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================ ASP.NET IDENTITY (papéis / claims / logins / tokens)
+-- A tabela `users` (acima) é o store de utilizadores. Estas completam o modelo Identity.
+-- Chaves BIGINT para alinhar com users.id. Nomes em snake_case (mapeados no DbContext via ToTable/HasColumnName).
+
+CREATE TABLE roles (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name              VARCHAR(256) NULL,                 -- Name (ex.: Owner, Gestor)
+  normalized_name   VARCHAR(256) NULL,                 -- NormalizedName
+  concurrency_stamp VARCHAR(255) NULL,
+  UNIQUE KEY uq_role_normalized_name (normalized_name)  -- RoleNameIndex (papéis são globais à plataforma)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_roles (
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  KEY ix_user_roles_role (role_id),
+  CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE role_claims (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  role_id     BIGINT NOT NULL,
+  claim_type  VARCHAR(255) NULL,
+  claim_value VARCHAR(255) NULL,
+  KEY ix_role_claims_role (role_id),
+  CONSTRAINT fk_rc_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_claims (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id     BIGINT NOT NULL,
+  claim_type  VARCHAR(255) NULL,
+  claim_value VARCHAR(255) NULL,
+  KEY ix_user_claims_user (user_id),
+  CONSTRAINT fk_uc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_logins (
+  login_provider        VARCHAR(128) NOT NULL,
+  provider_key          VARCHAR(128) NOT NULL,
+  provider_display_name VARCHAR(255) NULL,
+  user_id               BIGINT NOT NULL,
+  PRIMARY KEY (login_provider, provider_key),
+  KEY ix_user_logins_user (user_id),
+  CONSTRAINT fk_ul_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_tokens (
+  user_id        BIGINT NOT NULL,
+  login_provider VARCHAR(128) NOT NULL,
+  name           VARCHAR(128) NOT NULL,
+  value          TEXT NULL,
+  PRIMARY KEY (user_id, login_provider, name),
+  CONSTRAINT fk_ut_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================ CRM / CLIENTES

@@ -50,10 +50,11 @@ serve de **referência visual e funcional** (a "spec viva"). A app real vai para
 | `prototype/screens-*.jsx` | Um ecrã/módulo por ficheiro (referência de fluxo + copy). |
 
 ## 5. Stack alvo (sugerido)
-- **Backend:** ASP.NET MVC (C#, **.NET 10** / `net10.0`), multi-tenant por `tenant_id`, EF Core 10.
-- **BD:** MySQL 8 (`utf8mb4`) via **Pomelo**, **database-first** — esquema criado a correr `handoff/db-schema-mysql.sql` à mão; **sem EF Migrations** (o EF só mapeia/lê a base).
+- **Backend:** ASP.NET MVC (C#, **.NET 10** / `net10.0`), multi-tenant por `tenant_id`.
+- **ORM:** EF Core **9.x** + **Pomelo** `9.0.0` (Pomelo/EF Core 10 ainda não publicados — corre no runtime .NET 10). Bump quando saírem as versões 10.
+- **BD:** MySQL 8 (`utf8mb4`) via Pomelo, **database-first** — esquema criado a correr `handoff/db-schema-mysql.sql` à mão; **sem EF Migrations** (o EF só mapeia/lê a base).
 - **Cronograma:** DHTMLX Gantt (ver `handoff/`).
-- **Auth:** ASP.NET Identity; `UserType` distingue plataforma vs tenant.
+- **Auth:** **ASP.NET Identity** com a tabela **`users` como store** (`ToTable("users")`, `ApplicationUser : IdentityUser<long>`, chave **BIGINT**). Tabelas de papéis (`roles`, `user_roles`, …) criadas **por SQL à mão**, sem migrations. `user_type` distingue plataforma vs tenant; autorização por **papéis do Identity**.
 - **Integrações:** gateway SMS + Email (convites, aprovações por SMS), storage de documentos.
 
 ## 6. Regras estruturais a respeitar
@@ -65,7 +66,17 @@ serve de **referência visual e funcional** (a "spec viva"). A app real vai para
 - **Previsto vs Real** em fases/projetos: guardar ambos (datas, horas) para medir desvio/produtividade.
 - **Coerência financeira:** `faturado = recebido + a_receber`; honorários por fase reconciliam com o projeto.
 
-## 7. MVP vs. fases seguintes *(proposta — a confirmar)*
+## 7. Decisões de arquitetura (fechadas)
+> Confirmadas com o Miguel (jun. 2026). **Em caso de conflito entre documentos, estas mandam.**
+
+1. **Fonte de verdade.** `GUIA_MIGRACAO_CLAUDE_CODE.md` + este `README_HANDOFF.md` + `handoff/db-schema-mysql.sql` mandam. A `Docs/ProjectYard_Master_Specification_v1.md` é **visão/roadmap** — não implementar à letra (ignorar: Clean Architecture de 6 projetos, Finbuckle, 2 BDs, Materio, Hangfire, ~80 tabelas e migrations dela).
+2. **Autenticação — ASP.NET Identity com `users` como store.** `ApplicationUser : IdentityUser<long>` mapeado a `users` (`ToTable("users")`, chave **BIGINT**) — uma só tabela de utilizadores, FKs intactas. As tabelas de papéis (`roles`, `user_roles`, `role_claims`, `user_claims`, `user_logins`, `user_tokens`, em snake_case) são criadas **por SQL à mão** — **sem migrations**. Autorização por **papéis do Identity** (`[Authorize(Roles=…)]` via `user_roles`).
+3. **Base de dados — database-first, sem EF Migrations.** Esquema em `handoff/db-schema-mysql.sql` (única fonte de verdade), corrido à mão no DBeaver. O EF só **mapeia/lê** (scaffold). Nunca `Add-Migration`/`database update`.
+4. **UI — replicar o protótipo.** Razor fiel a `prototype/styles.css` + `prototype/ui.jsx`. **Sem** template Materio.
+5. **Estrutura da solução — 2 projetos.** `ProjectYard.Web` (MVC) + `ProjectYard.Data` (camada de dados) em `src/`. **Não** Clean Architecture de 6 projetos.
+6. **Stack EF — 9.x sobre `net10.0`.** `Pomelo.EntityFrameworkCore.MySql 9.0.0` + EF Core 9 (Pomelo/EF Core 10 ainda não publicados; correm no runtime .NET 10). Bump quando saírem as versões 10.
+
+## 8. MVP vs. fases seguintes *(proposta — a confirmar)*
 **MVP (1.ª entrega):** Auth + multi-tenant, Consola de Plataforma (criar workspace + users), Projetos +
 Fases, Registo de horas, Entregáveis/Documentos, Financeiro (faturas + milestones), Dashboard.
 **Fase 2:** Cronograma (DHTMLX), Aprovações, Riscos, Relatórios, CRM Clientes.
