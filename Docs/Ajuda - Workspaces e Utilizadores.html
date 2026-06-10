@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ajuda — Workspaces e Utilizadores · ProjectYard</title>
+<link rel="icon" type="image/png" href="assets/projectyard-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#f6f3ee; --surface:#ffffff; --ink:#222b35; --ink-2:#566069; --ink-3:#8b949d;
+    --line:#e7e2d9; --line-2:#d8d2c6; --navy:#233140; --gold:#d9a32a; --gold-700:#a87c18;
+    --gold-soft:#f6ecd5; --green:#1f9d6b; --blue:#2a7fb8; --r:14px;
+    --font:'Plus Jakarta Sans',system-ui,sans-serif; --display:'Space Grotesk',var(--font);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;
+    -webkit-font-smoothing:antialiased;font-size:15.5px;}
+  .doc{max-width:840px;margin:0 auto;padding:48px 28px 90px;}
+
+  /* Header */
+  .head{display:flex;align-items:center;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:34px;}
+  .head__logo{width:46px;height:46px;border-radius:12px;overflow:hidden;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .head__logo img{width:100%;height:100%;object-fit:cover;}
+  .head__brand{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em;}
+  .head__brand small{display:block;font-family:var(--font);font-weight:600;font-size:11.5px;color:var(--ink-3);letter-spacing:.02em;}
+  .head__tag{margin-left:auto;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--gold-700);background:var(--gold-soft);padding:6px 12px;border-radius:99px;}
+
+  h1{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-.02em;margin:0 0 10px;}
+  .lede{font-size:17px;color:var(--ink-2);max-width:62ch;margin:0 0 30px;}
+  h2{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.01em;margin:40px 0 14px;}
+  p{margin:0 0 14px;}
+  strong{font-weight:700;}
+
+  /* Concept two-layer */
+  .layers{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 8px;}
+  .layer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 18px 16px;}
+  .layer__k{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin-bottom:8px;display:flex;align-items:center;gap:7px;}
+  .layer h3{font-family:var(--display);margin:0 0 6px;font-size:16px;}
+  .layer p{font-size:13.5px;color:var(--ink-2);margin:0;}
+  .dot{width:9px;height:9px;border-radius:99px;display:inline-block;}
+
+  /* Steps */
+  .step{display:flex;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px;margin-bottom:16px;}
+  .step__n{width:38px;height:38px;border-radius:11px;background:var(--navy);color:#fff;font-family:var(--display);
+    font-weight:700;font-size:18px;display:grid;place-items:center;flex-shrink:0;}
+  .step__b{min-width:0;flex:1;}
+  .step h3{font-family:var(--display);font-size:17px;margin:2px 0 4px;}
+  .path{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;font-weight:700;
+    color:var(--ink-2);background:#f3efe7;border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-bottom:12px;}
+  .path b{color:var(--navy);}
+  .path .sep{color:var(--gold);}
+  ul.fields{list-style:none;padding:0;margin:8px 0 0;}
+  ul.fields li{position:relative;padding:5px 0 5px 22px;font-size:14px;color:var(--ink-2);}
+  ul.fields li::before{content:"";position:absolute;left:0;top:12px;width:8px;height:8px;border-radius:3px;background:var(--gold);}
+  ul.fields li b{color:var(--ink);}
+
+  /* Callout */
+  .note{display:flex;gap:12px;background:#eef4f8;border:1px solid #d4e3ee;border-radius:12px;padding:14px 16px;margin:14px 0;font-size:13.5px;color:#2c4456;}
+  .note.gold{background:var(--gold-soft);border-color:#ecd9ad;color:#6a5413;}
+  .note .ic{font-weight:800;flex-shrink:0;}
+
+  /* Roles table */
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:8px 0 6px;}
+  th,td{text-align:left;padding:12px 16px;font-size:13.5px;border-bottom:1px solid var(--line);}
+  thead th{background:#faf7f1;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:700;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.c{text-align:center;}
+  .yes{color:var(--green);font-weight:700;}
+  .no{color:var(--ink-3);}
+  .role{font-weight:700;}
+
+  .foot{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+
+  @media (max-width:680px){ .layers{grid-template-columns:1fr;} }
+  @media print{
+    body{background:#fff;font-size:11pt;}
+    .doc{padding:0;max-width:none;}
+    .step,.layer,table,.note{break-inside:avoid;}
+    .head__tag{border:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="head">
+    <div class="head__logo"><img src="assets/projectyard-icon.png" alt="ProjectYard" /></div>
+    <div class="head__brand">ProjectYard<small>Plan · Build · Deliver</small></div>
+    <div class="head__tag">Ajuda · Administração</div>
+  </div>
+
+  <h1>Criar um workspace e os seus utilizadores</h1>
+  <p class="lede">Como o <strong>superadmin</strong> regista um novo atelier (workspace) na plataforma e provisiona os utilizadores que o vão usar.</p>
+
+  <h2>Como funciona — duas camadas</h2>
+  <p>No ProjectYard há uma separação clara entre a <strong>plataforma</strong> e cada <strong>workspace</strong>. Perceber isto explica quem cria o quê.</p>
+  <div class="layers">
+    <div class="layer">
+      <div class="layer__k"><span class="dot" style="background:var(--navy)"></span> Camada de plataforma</div>
+      <h3>Workspaces (tenants)</h3>
+      <p>Cada atelier é um workspace isolado. Só o <strong>superadmin</strong> cria, suspende ou entra em workspaces.</p>
+    </div>
+    <div class="layer">
+      <div class="layer__k"><span class="dot" style="background:var(--gold)"></span> Dentro de um workspace</div>
+      <h3>Utilizadores</h3>
+      <p>Cada utilizador pertence a um workspace. São criados/convidados <strong>dentro</strong> do tenant — pelo superadmin ou pelo Owner.</p>
+    </div>
+  </div>
+  <div class="note"><span class="ic">→</span><div>Regra de ouro: <strong>criar um workspace cria sempre o seu primeiro utilizador</strong> (o proprietário). Um workspace nunca fica sem ninguém.</div></div>
+
+  <h2>Passo 1 — Registar o workspace</h2>
+  <div class="step">
+    <div class="step__n">1</div>
+    <div class="step__b">
+      <div class="path"><b>Workspaces</b> <span class="sep">›</span> botão <b>Novo workspace</b></div>
+      <h3>Dados do atelier e do proprietário</h3>
+      <p>Abre um assistente de 2 ecrãs. No primeiro defines:</p>
+      <ul class="fields">
+        <li><b>Nome do atelier</b> — gera automaticamente o <b>endereço (slug)</b>, ex.: <code>projectyard.app/atelier-norte</code> (verifica duplicados).</li>
+        <li><b>Plano</b> — Starter, Pro ou Enterprise.</li>
+        <li><b>Estado inicial</b> — <b>Trial</b> (30 dias) ou <b>Ativo</b>.</li>
+        <li><b>Proprietário</b> — nome e email. Torna-se o <b>1.º utilizador</b>, com papel <b>Owner</b>.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Passo 2 — Convidar os utilizadores</h2>
+  <div class="step">
+    <div class="step__n">2</div>
+    <div class="step__b">
+      <div class="path">No assistente: <b>2.º ecrã</b> <span class="sep">·</span> ou mais tarde em <b>Definições</b> <span class="sep">›</span> <b>Equipa &amp; permissões</b></div>
+      <h3>Adicionar membros à equipa</h3>
+      <p>Logo a seguir a criar o workspace (ou a qualquer momento depois), convidas os restantes utilizadores:</p>
+      <ul class="fields">
+        <li>Convite por <b>Email</b> ou <b>SMS</b>.</li>
+        <li>Atribuir <b>papel</b> — Administrador, Gestor, Membro ou Cliente.</li>
+        <li>Cada convidado fica <b>Pendente</b> até aceitar; podes <b>cancelar</b> o convite.</li>
+        <li><b>Ativar/desativar</b> utilizadores quando necessário.</li>
+      </ul>
+      <div class="note gold"><span class="ic">✦</span><div>Os convidados recebem um <strong>link para definir a palavra-passe</strong>. O próprio <strong>Owner</strong> do workspace também pode convidar — não depende do superadmin.</div></div>
+    </div>
+  </div>
+
+  <h2>Quem pode fazer o quê</h2>
+  <table>
+    <thead><tr><th>Ação</th><th class="c">Superadmin</th><th class="c">Owner / Admin do workspace</th></tr></thead>
+    <tbody>
+      <tr><td>Criar / suspender <strong>workspaces</strong></td><td class="c yes">Sim</td><td class="c no">—</td></tr>
+      <tr><td>Entrar em qualquer workspace (auditado)</td><td class="c yes">Sim</td><td class="c no">—</td></tr>
+      <tr><td>Criar / convidar <strong>utilizadores</strong></td><td class="c yes">Sim<span class="no"> (modo plataforma)</span></td><td class="c yes">Sim <span class="no">(só do seu)</span></td></tr>
+      <tr><td>Atribuir papéis e permissões</td><td class="c yes">Sim</td><td class="c yes">Sim</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><span class="ic">🛈</span><div>Quando o superadmin entra num workspace, fica em <strong>modo plataforma</strong> — todas as ações ficam registadas no <strong>trilho de auditoria</strong>.</div></div>
+
+  <div class="foot">
+    <span>ProjectYard · Guia de administração</span>
+    <span>Workspaces &amp; Utilizadores · v1</span>
+  </div>
+
+</div>
+
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#233140"/><g transform="translate(30,30)" fill="none" stroke="#d9a32a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="11" r="7"/><path d="M2 38v-3a12 12 0 0 1 24 0v3"/><path d="M30 20h10M30 30h6"/></g></svg>
+</template>
+</body>
+</html>

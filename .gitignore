@@ -1,0 +1,23 @@
+# ---- .NET / ASP.NET (pasta src/) ----
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.pdb
+
+# ---- appsettings com segredos ----
+appsettings.Development.json
+appsettings.*.Local.json
+*.env
+
+# ---- Node (se algum módulo usar) ----
+node_modules/
+
+# ---- SO / editores ----
+.DS_Store
+Thumbs.db
+*.swp
