@@ -1,4 +1,14 @@
+using Microsoft.EntityFrameworkCore;
+using ProjectYard.Data.Data;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// EF Core + Pomelo MySQL (database-first). ServerVersion fixo para evitar ligação no arranque.
+// A configuração do ASP.NET Identity (AddIdentity, cookies, autorização) entra na Fase 5.
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        new MySqlServerVersion(new Version(8, 0, 41))));
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
