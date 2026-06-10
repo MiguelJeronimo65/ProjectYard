@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ProjectYard.Data/ProjectYard.Data.csproj" />
+  <Project Path="ProjectYard.Web/ProjectYard.Web.csproj" />
+</Solution>
