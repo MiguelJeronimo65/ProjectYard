@@ -1,8 +1,51 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    string Eur(decimal? n) => (n ?? 0m).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) + " €";
+    string StatusBadge(string s) => s switch
+    {
+        "Em curso" => "b-blue",
+        "Em risco" => "b-red",
+        "Concluído" => "b-green",
+        "Proposta" => "b-gray",
+        "Suspenso" => "b-amber",
+        _ => "b-gray"
+    };
+    string HealthColor(string h) => h switch { "green" => "var(--success)", "amber" => "var(--warning)", _ => "var(--danger)" };
 }
+<div class="content">
+    <div class="page-head">
+        <div>
+            <h1>Dashboard</h1>
+            <p>@Model.TenantName — visão geral dos teus projetos.</p>
+        </div>
+    </div>
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:24px;">
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Projetos ativos</div><div class="display num" style="font-size:30px;">@Model.ProjetosAtivos</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Entregáveis pendentes</div><div class="display num" style="font-size:30px;">@Model.EntregaveisPendentes</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Faturas abertas</div><div class="display num" style="font-size:30px;">@Model.FaturasAbertas</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Riscos abertos</div><div class="display num" style="font-size:30px;">@Model.RiscosAbertos</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Faturado (pago)</div><div class="display num" style="font-size:26px;">@Eur(Model.Faturado)</div></div>
+    </div>
+
+    <div class="card-h"><h3>Projetos</h3><span class="sub">@Model.Projects.Count no total</span></div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr));">
+        @foreach (var p in Model.Projects)
+        {
+            <div class="card card-pad">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                    <span class="badge b-gray">@p.Code</span>
+                    <span class="badge @StatusBadge(p.Status)">@p.Status</span>
+                    <span title="Saúde" style="margin-left:auto;width:10px;height:10px;border-radius:99px;background:@HealthColor(p.Health);"></span>
+                </div>
+                <div style="font-weight:700;font-size:16px;line-height:1.3;margin-bottom:4px;">@p.Name</div>
+                <div class="muted" style="font-size:13px;margin-bottom:14px;">@(p.Client?.Company ?? "—") · @(p.Type ?? "—")</div>
+                <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Fase</div><div style="font-weight:600;">@(p.PhaseCurrent ?? "—")</div></div>
+                    <div style="text-align:right;"><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Honorários</div><div class="num" style="font-weight:700;">@Eur(p.Fees)</div></div>
+                </div>
+            </div>
+        }
+    </div>
 </div>

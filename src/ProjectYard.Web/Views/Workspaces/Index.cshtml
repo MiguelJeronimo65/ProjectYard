@@ -1,0 +1,44 @@
+@model List<Tenant>
+@{
+    ViewData["Title"] = "Workspaces";
+    var projByTenant = (Dictionary<long, int>)ViewBag.ProjectsByTenant;
+    var usersByTenant = (Dictionary<long, int>)ViewBag.UsersByTenant;
+    string StatusBadge(string s) => s switch
+    {
+        "Ativo" => "b-green",
+        "Trial" => "b-amber",
+        "Suspenso" => "b-red",
+        _ => "b-gray"
+    };
+}
+<div class="content">
+    <div class="page-head">
+        <div>
+            <h1>Workspaces</h1>
+            <p>Consola de plataforma — todos os tenants. @Model.Count workspaces.</p>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));">
+        @foreach (var t in Model)
+        {
+            var projs = projByTenant.TryGetValue(t.Id, out var pc) ? pc : 0;
+            var membros = usersByTenant.TryGetValue(t.Id, out var uc) ? uc : 0;
+            <div class="card card-pad">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                    <span class="avatar sq" style="width:42px;height:42px;background:@(t.PrimaryColor ?? "#2c3e51");font-size:15px;">@string.Concat(t.Name.Split(' ').Take(2).Select(w => char.ToUpper(w[0])))</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:16px;">@t.Name</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">projectyard.app/@t.Slug</div>
+                    </div>
+                    <span class="badge @StatusBadge(t.Status)">@t.Status</span>
+                </div>
+                <div style="display:flex;gap:22px;font-size:13px;">
+                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Plano</div><div style="font-weight:700;">@t.Plan</div></div>
+                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Projetos</div><div class="num" style="font-weight:700;">@projs</div></div>
+                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Membros</div><div class="num" style="font-weight:700;">@membros</div></div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

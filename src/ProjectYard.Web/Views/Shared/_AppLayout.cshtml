@@ -1,0 +1,126 @@
+@using System.Security.Claims
+@inject ProjectYard.Data.Data.AppDbContext Db
+@{
+    var ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var isSuper = User.FindFirstValue(AppUserClaimsPrincipalFactory.IsSuperadmin) == "true";
+    var displayName = User.FindFirstValue(AppUserClaimsPrincipalFactory.DisplayName) ?? User.Identity?.Name ?? "Utilizador";
+    var role = User.IsInRole("Superadmin") ? "Superadmin"
+        : User.IsInRole("Owner") ? "Owner"
+        : User.IsInRole("Gestor") ? "Gestor"
+        : User.IsInRole("Administrador") ? "Administrador"
+        : User.IsInRole("Cliente") ? "Cliente" : "Membro";
+    string tenantName = isSuper ? "Acesso de plataforma"
+        : (Db.CurrentTenantId is { } tid ? (Db.Tenants.Find(tid)?.Name ?? "Workspace") : "Workspace");
+    string Initials(string n) => string.Concat(n.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Take(2).Select(p => char.ToUpper(p[0])));
+
+    (string id, string label, string icon, string url)[] Nav(params (string, string, string, string)[] items) => items;
+    var groups = new (string label, (string id, string label, string icon, string url)[] items)[]
+    {
+        ("Workspace", Nav(
+            ("dashboard", "Dashboard", "grid", Url.Action("Index","Home")!),
+            ("projects", "Projetos", "folder", "#"),
+            ("tasks", "Tasks", "checkSquare", "#"),
+            ("gantt", "Cronograma", "gantt", "#"),
+            ("timesheets", "Registo de horas", "clock", "#"))),
+        ("Comercial", Nav(
+            ("clients", "Clientes", "users", "#"),
+            ("deliverables", "Entregáveis", "layers", "#"),
+            ("payments", "Pagamentos", "card", "#"))),
+        ("Controlo", Nav(
+            ("reports", "Relatórios", "trend", "#"),
+            ("approvals", "Aprovações", "shield", "#"),
+            ("documents", "Documentos", "fileText", "#"),
+            ("risks", "Riscos", "alert", "#"))),
+    };
+}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " · ProjectYard" : "ProjectYard")</title>
+    <link rel="icon" href="~/assets/projectyard-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/projectyard.css" asp-append-version="true" />
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar side--dark">
+        <div class="brand">
+            <div class="brand__logo"><img src="~/assets/projectyard-icon.png" alt="ProjectYard" /></div>
+            <div class="brand__name">ProjectYard<small>Plan · Build · Deliver</small></div>
+        </div>
+
+        <div class="ws-wrap">
+            <div class="user-chip" style="width:100%;">
+                <span class="avatar sq" style="width:34px;height:34px;background:#2c3e51;font-size:12.5px;">@Initials(tenantName)</span>
+                <div style="min-width:0;flex:1;text-align:left;">
+                    <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@tenantName</div>
+                    <div class="muted-3" style="font-size:11.5px;font-weight:600;">@(isSuper ? "Plataforma" : "Workspace")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-scroll">
+            @if (isSuper)
+            {
+                <div class="nav-label">Plataforma</div>
+                <a class="nav-item @(ctrl == "Workspaces" ? "active" : "")" href="@Url.Action("Index","Workspaces")">
+                    @Icons.Render("building", 19)<span>Workspaces</span>
+                </a>
+                <a class="nav-item" href="#">@Icons.Render("shield", 19)<span>Conformidade RGPD</span></a>
+            }
+            @foreach (var g in groups)
+            {
+                <div class="nav-label">@g.label</div>
+                @foreach (var n in g.items)
+                {
+                    var active = n.id == "dashboard" && ctrl == "Home" && !isSuper;
+                    <a class="nav-item @(active ? "active" : "")" href="@n.url" title="@n.label">
+                        @Icons.Render(n.icon, 19)<span>@n.label</span>
+                    </a>
+                }
+            }
+        </div>
+
+        <div class="side-foot">
+            <a class="nav-item" href="#">@Icons.Render("settings", 19)<span>Definições</span></a>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <button class="search" type="button" style="cursor:default;text-align:left;">
+                @Icons.Render("search", 18)
+                <input placeholder="Procurar projetos, tarefas, documentos…" readonly style="cursor:default;" />
+            </button>
+            <div class="topbar__right">
+                <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
+                <div class="user-chip" style="border:none;padding:6px 8px;">
+                    <span class="avatar" style="width:36px;height:36px;background:#233140;font-size:13px;">@Initials(displayName)</span>
+                    <div style="text-align:left;">
+                        <div style="font-weight:700;font-size:13.5px;">@displayName</div>
+                        @if (isSuper)
+                        {
+                            <span class="badge b-navy" style="padding:1px 7px;font-size:10px;margin-top:2px;">@Icons.Render("shield", 10) Superadmin</span>
+                        }
+                        else
+                        {
+                            <div class="muted-3" style="font-size:11.5px;font-weight:600;">@role</div>
+                        }
+                    </div>
+                </div>
+                <form asp-controller="Account" asp-action="Logout" method="post" style="margin:0;">
+                    <button class="icon-btn" type="submit" title="Terminar sessão">@Icons.Render("logout", 19)</button>
+                </form>
+            </div>
+        </header>
+
+        @RenderBody()
+    </div>
+</div>
+</body>
+</html>
