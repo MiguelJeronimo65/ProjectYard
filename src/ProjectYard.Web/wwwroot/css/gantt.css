@@ -1,0 +1,30 @@
+/* ProjectYard — Skin DHTMLX Gantt (cores alinhadas com o protótipo) */
+
+/* Barras por estado (gantt.templates.task_class) */
+.gantt_task_line.py-project { background: #33414f; border-color: #33414f; }
+.gantt_task_line.py-done    { background: #1f9d6b; border-color: #1a8159; }
+.gantt_task_line.py-doing   { background: #2a7fb8; border-color: #246a9c; }
+.gantt_task_line.py-todo    { background: #c9d2da; border-color: #b7c1cb; }
+.gantt_task_line.py-todo .gantt_task_content { color: #5b6671; }
+
+/* Progresso */
+.gantt_task_progress { background: rgba(255,255,255,.30); }
+
+/* Baseline = PREVISTO (barra fina por baixo, via addTaskLayer) */
+.py-baseline {
+  position: absolute; height: 5px; border-radius: 3px;
+  background: rgba(120,130,140,.45);
+}
+
+/* Linha "Hoje" (gantt.addMarker css:"today-line") */
+.today-line { background: #d65151; }
+.today-line .gantt_marker_content { color: #d65151; font-weight: 700; }
+
+/* Caminho crítico (PRO: highlight_critical_path) */
+.gantt_critical_task .gantt_task_line { box-shadow: 0 0 0 2px #d65151 inset; }
+
+/* Fase crítica como etiqueta (alternativa sem PRO): classe .py-crit no task_class */
+.gantt_task_line.py-crit::after {
+  content: ""; position: absolute; left: -3px; top: 0; bottom: 0; width: 3px;
+  background: #d65151; border-radius: 3px;
+}

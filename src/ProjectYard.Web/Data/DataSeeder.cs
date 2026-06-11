@@ -305,7 +305,29 @@ public static class DataSeeder
             Doc("PY-118", "Render_Fachada_Norte.jpg", "JPG", "Arquitetura", "sofia.lemos@atelier-norte.pt");
             await db.SaveChangesAsync();
         }
-        Console.WriteLine($"seed-extras: approvals={await db.Approvals.CountAsync()} documents={await db.Documents.CountAsync()}");
+        // Datas das fases (para o Cronograma): distribui o período do projeto pelas suas fases.
+        if (await db.ProjectPhases.AnyAsync(p => p.StartPlanned == null))
+        {
+            var projs = await db.Projects.Where(p => p.StartPlanned != null && p.EndPlanned != null).ToListAsync();
+            foreach (var p in projs)
+            {
+                var phases = await db.ProjectPhases.Where(ph => ph.ProjectId == p.Id).OrderBy(ph => ph.SortOrder).ToListAsync();
+                if (phases.Count == 0) continue;
+                var start = p.StartPlanned!.Value;
+                var end = p.EndPlanned!.Value;
+                var per = Math.Max(1, (end.DayNumber - start.DayNumber) / phases.Count);
+                for (int i = 0; i < phases.Count; i++)
+                {
+                    var s = start.AddDays(i * per);
+                    var e = i == phases.Count - 1 ? end : start.AddDays((i + 1) * per - 1);
+                    phases[i].StartPlanned = s; phases[i].EndPlanned = e;
+                    phases[i].StartReal = s; phases[i].EndReal = e;
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+
+        Console.WriteLine($"seed-extras: approvals={await db.Approvals.CountAsync()} documents={await db.Documents.CountAsync()} fases com datas={await db.ProjectPhases.CountAsync(p => p.StartPlanned != null)}");
     }
 
     private static async Task PrintCounts(AppDbContext db)
