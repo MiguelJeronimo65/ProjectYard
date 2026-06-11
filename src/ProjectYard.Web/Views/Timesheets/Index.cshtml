@@ -4,10 +4,13 @@
     var total = Model.Sum(e => e.Hours);
 }
 <div class="content">
-    <div class="page-head"><div><h1>Registo de horas</h1><p>@Model.Count registos · @Ui.Num(total) h no total.</p></div></div>
+    <div class="page-head">
+        <div><h1>Registo de horas</h1><p>@Model.Count registos · @Ui.Num(total) h no total.</p></div>
+        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Registar horas</a></div>
+    </div>
     <div class="card">
         <table class="tbl">
-            <thead><tr><th>Data</th><th>Colaborador</th><th>Projeto</th><th>Tipo</th><th>Descrição</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Custo</th><th>Faturável</th></tr></thead>
+            <thead><tr><th>Data</th><th>Colaborador</th><th>Projeto</th><th>Tipo</th><th>Descrição</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Custo</th><th>Faturável</th><th></th></tr></thead>
             <tbody>
             @foreach (var e in Model)
             {
@@ -20,6 +23,11 @@
                     <td class="num" style="text-align:right;font-weight:700;">@Ui.Num(e.Hours)</td>
                     <td class="num" style="text-align:right;">@Ui.Eur(e.Cost)</td>
                     <td>@if (e.Billable == true) { <span class="badge b-green">Sim</span> } else { <span class="badge b-gray">Não</span> }</td>
+                    <td style="text-align:right;">
+                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este registo?');">
+                            <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
+                        </form>
+                    </td>
                 </tr>
             }
             </tbody>

@@ -1,10 +1,13 @@
 @model List<Client>
 @{ ViewData["Title"] = "Clientes"; }
 <div class="content">
-    <div class="page-head"><div><h1>Clientes</h1><p>@Model.Count clientes no teu workspace.</p></div></div>
+    <div class="page-head">
+        <div><h1>Clientes</h1><p>@Model.Count clientes no teu workspace.</p></div>
+        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo cliente</a></div>
+    </div>
     <div class="card">
         <table class="tbl">
-            <thead><tr><th>Empresa</th><th>NIF</th><th>Contacto</th><th>Email</th><th>Cidade</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Empresa</th><th>NIF</th><th>Contacto</th><th>Email</th><th>Cidade</th><th>Estado</th><th style="text-align:right;">Ações</th></tr></thead>
             <tbody>
             @foreach (var c in Model)
             {
@@ -15,6 +18,12 @@
                     <td class="muted">@(c.Email ?? "—")</td>
                     <td>@(c.City ?? "—")</td>
                     <td><span class="badge @Ui.ClientStatus(c.Status)">@c.Status</span></td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <a class="btn btn-ghost btn-sm" asp-action="Edit" asp-route-id="@c.Id">Editar</a>
+                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este cliente?');">
+                            <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
+                        </form>
+                    </td>
                 </tr>
             }
             </tbody>

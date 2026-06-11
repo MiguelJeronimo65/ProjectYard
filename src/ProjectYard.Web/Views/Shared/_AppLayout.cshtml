@@ -121,6 +121,12 @@
             </div>
         </header>
 
+        @if (TempData["ok"] is string okMsg)
+        {
+            <div style="margin:18px 30px -8px;padding:12px 16px;border-radius:var(--r-sm);background:var(--success-soft);color:var(--success);font-weight:600;display:flex;align-items:center;gap:8px;">
+                @Icons.Render("check", 16) @okMsg
+            </div>
+        }
         @RenderBody()
     </div>
 </div>

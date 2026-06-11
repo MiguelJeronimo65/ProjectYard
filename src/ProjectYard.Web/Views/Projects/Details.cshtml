@@ -15,6 +15,7 @@
             <h1>@p.Name</h1>
             <p>@(p.Client?.Company ?? "—") · @(p.Type ?? "—") · Gestor: @(p.Manager?.Name ?? "—")</p>
         </div>
+        <div class="page-head__actions"><a class="btn btn-ghost" asp-action="Edit" asp-route-id="@p.Id">@Icons.Render("settings", 16) Editar</a></div>
     </div>
 
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:22px;">

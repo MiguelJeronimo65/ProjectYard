@@ -1,7 +1,10 @@
 @model List<Project>
 @{ ViewData["Title"] = "Projetos"; }
 <div class="content">
-    <div class="page-head"><div><h1>Projetos</h1><p>@Model.Count projetos no teu workspace.</p></div></div>
+    <div class="page-head">
+        <div><h1>Projetos</h1><p>@Model.Count projetos no teu workspace.</p></div>
+        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo projeto</a></div>
+    </div>
     <div class="card">
         <table class="tbl">
             <thead>

@@ -4,10 +4,13 @@
     string Sev(int p, int i) => (p * i) >= 15 ? "b-red" : (p * i) >= 8 ? "b-amber" : "b-gray";
 }
 <div class="content">
-    <div class="page-head"><div><h1>Riscos</h1><p>@Model.Count riscos · ordenados por severidade (probabilidade × impacto).</p></div></div>
+    <div class="page-head">
+        <div><h1>Riscos</h1><p>@Model.Count riscos · ordenados por severidade (probabilidade × impacto).</p></div>
+        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo risco</a></div>
+    </div>
     <div class="card">
         <table class="tbl">
-            <thead><tr><th>Risco</th><th>Projeto</th><th>Categoria</th><th>Prob.</th><th>Impacto</th><th>Severidade</th><th>Responsável</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Risco</th><th>Projeto</th><th>Categoria</th><th>Prob.</th><th>Impacto</th><th>Severidade</th><th>Responsável</th><th>Estado</th><th style="text-align:right;">Ações</th></tr></thead>
             <tbody>
             @foreach (var r in Model)
             {
@@ -20,6 +23,12 @@
                     <td><span class="badge @Sev(r.Probability, r.Impact)">@(r.Probability * r.Impact)</span></td>
                     <td>@(r.Owner?.Name ?? "—")</td>
                     <td><span class="badge @Ui.RiskStatus(r.Status)">@r.Status</span></td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <a class="btn btn-ghost btn-sm" asp-action="Edit" asp-route-id="@r.Id">Editar</a>
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este risco?');">
+                            <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
+                        </form>
+                    </td>
                 </tr>
             }
             </tbody>
