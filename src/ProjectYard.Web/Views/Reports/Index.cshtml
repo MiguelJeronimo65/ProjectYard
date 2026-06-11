@@ -1,0 +1,49 @@
+@model ReportsViewModel
+@{ ViewData["Title"] = "Relatórios"; }
+<div class="content">
+    <div class="page-head"><div><h1>Relatórios</h1><p>Resumo operacional e financeiro do workspace.</p></div></div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:24px;">
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Honorários (carteira)</div><div class="display num" style="font-size:24px;">@Ui.Eur(Model.Honorarios)</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Recebido</div><div class="display num" style="font-size:24px;color:var(--success);">@Ui.Eur(Model.Pago)</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Pendente</div><div class="display num" style="font-size:24px;color:var(--warning);">@Ui.Eur(Model.Pendente)</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Vencido</div><div class="display num" style="font-size:24px;color:var(--danger);">@Ui.Eur(Model.Vencido)</div></div>
+        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Horas registadas</div><div class="display num" style="font-size:24px;">@Ui.Num(Model.HorasTotais) h</div></div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;">
+        <div class="card">
+            <div class="card-pad card-h"><h3>Horas por projeto</h3></div>
+            <table class="tbl">
+                <thead><tr><th>Projeto</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Custo</th></tr></thead>
+                <tbody>
+                @foreach (var r in Model.HoursByProject)
+                {
+                    <tr><td><span class="badge b-gray">@r.Code</span></td><td class="num" style="text-align:right;font-weight:700;">@Ui.Num(r.Hours)</td><td class="num" style="text-align:right;">@Ui.Eur(r.Cost)</td></tr>
+                }
+                @if (Model.HoursByProject.Count == 0) { <tr><td colspan="3" class="muted" style="padding:20px;">Sem registos.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+        <div class="card">
+            <div class="card-pad card-h"><h3>Projetos por estado</h3></div>
+            <table class="tbl">
+                <tbody>
+                @foreach (var kv in Model.ProjectsByStatus)
+                {
+                    <tr><td><span class="badge @Ui.ProjectStatus(kv.Key)">@kv.Key</span></td><td class="num" style="text-align:right;font-weight:700;">@kv.Value</td></tr>
+                }
+                </tbody>
+            </table>
+            <div class="card-pad card-h" style="border-top:1px solid var(--border);"><h3>Entregáveis por estado</h3></div>
+            <table class="tbl">
+                <tbody>
+                @foreach (var kv in Model.DeliverablesByStatus)
+                {
+                    <tr><td><span class="badge @Ui.DeliverableStatus(kv.Key)">@kv.Key</span></td><td class="num" style="text-align:right;font-weight:700;">@kv.Value</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

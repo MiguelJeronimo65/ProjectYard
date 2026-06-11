@@ -1,0 +1,28 @@
+@model List<Approval>
+@{
+    ViewData["Title"] = "Aprovações";
+    string St(string s) => s switch { "Aprovada" => "b-green", "Devolvida" => "b-red", _ => "b-amber" };
+}
+<div class="content">
+    <div class="page-head"><div><h1>Aprovações</h1><p>@Model.Count pedidos de aprovação.</p></div></div>
+    <div class="card">
+        <table class="tbl">
+            <thead><tr><th>Pedido</th><th>Projeto</th><th>Tipo</th><th>Solicitante</th><th style="text-align:right;">Valor</th><th>Prioridade</th><th>Estado</th></tr></thead>
+            <tbody>
+            @foreach (var a in Model)
+            {
+                <tr>
+                    <td style="font-weight:700;">@a.Title</td>
+                    <td><span class="badge b-gray">@(a.Project?.Code ?? "—")</span></td>
+                    <td>@a.Type</td>
+                    <td>@(a.RequestedByUser?.Name ?? "—")</td>
+                    <td class="num" style="text-align:right;">@(a.Amount.HasValue ? Ui.Eur(a.Amount) : "—")</td>
+                    <td><span class="badge @(a.Priority == "Alta" ? "b-red" : a.Priority == "Média" ? "b-amber" : "b-gray")">@a.Priority</span></td>
+                    <td><span class="badge @St(a.Status)">@a.Status</span></td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="7" class="muted" style="padding:24px;">Sem aprovações.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>

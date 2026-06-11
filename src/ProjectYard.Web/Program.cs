@@ -53,6 +53,12 @@ if (args.Contains("seed"))
     await ProjectYard.Web.Data.DataSeeder.SeedAsync(scope.ServiceProvider);
     return;
 }
+if (args.Contains("seed-extras"))
+{
+    using var scope = app.Services.CreateScope();
+    await ProjectYard.Web.Data.DataSeeder.SeedExtrasAsync(scope.ServiceProvider);
+    return;
+}
 if (args.Contains("verify-login"))
 {
     using var scope = app.Services.CreateScope();

@@ -268,6 +268,46 @@ public static class DataSeeder
         await PrintCounts(db);
     }
 
+    /// <summary>Seed adicional (aprovações + documentos), idempotente por tabela. `dotnet run -- seed-extras`.</summary>
+    public static async Task SeedExtrasAsync(IServiceProvider sp)
+    {
+        var db = sp.GetRequiredService<AppDbContext>();
+        db.BypassTenantFilter = true;
+        var atelier = await db.Tenants.Where(t => t.Slug == "atelier-norte").Select(t => t.Id).FirstAsync();
+        var proj = await db.Projects.Where(p => p.TenantId == atelier).ToDictionaryAsync(p => p.Code, p => p);
+        var usr = await db.Users.Where(u => u.TenantId == atelier).ToDictionaryAsync(u => u.Email!, u => u);
+        long? U(string email) => usr.TryGetValue(email, out var u) ? u.Id : null;
+        long P(string code) => proj[code].Id;
+
+        if (!await db.Approvals.AnyAsync())
+        {
+            var a1 = new E.Approval { TenantId = atelier, ProjectId = P("PY-118"), Title = "Projeto de Estabilidade v2", Type = "Entregável", RequestedBy = U("joana.faria@atelier-norte.pt"), Priority = "Alta", Status = "Aberta", CreatedAt = Now };
+            var a2 = new E.Approval { TenantId = atelier, ProjectId = P("PY-117"), Title = "Orçamento adicional — sondagens", Type = "Change Request", RequestedBy = U("rui.cardoso@atelier-norte.pt"), Amount = 4200, Priority = "Média", Status = "Aberta", CreatedAt = Now };
+            var a3 = new E.Approval { TenantId = atelier, ProjectId = P("PY-115"), Title = "Pagamento milestone — Execução 50%", Type = "Pagamento", RequestedBy = U("ana.moreira@atelier-norte.pt"), Amount = 61500, Priority = "Alta", Status = "Aprovada", CreatedAt = Now };
+            db.Approvals.AddRange(a1, a2, a3);
+            await db.SaveChangesAsync();
+            db.AddRange(
+                new E.ApprovalStep { ApprovalId = a1.Id, UserId = U("ana.moreira@atelier-norte.pt"), RoleLabel = "Gestora de Projeto", State = "current", SortOrder = 0 },
+                new E.ApprovalStep { ApprovalId = a1.Id, RoleLabel = "Cliente", State = "pending", SortOrder = 1 },
+                new E.ApprovalStep { ApprovalId = a3.Id, UserId = U("ana.moreira@atelier-norte.pt"), RoleLabel = "Gestora", State = "done", SortOrder = 0 });
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.Documents.AnyAsync())
+        {
+            void Doc(string code, string name, string ext, string folder, string email)
+                => db.Documents.Add(new E.Document { TenantId = atelier, ProjectId = P(code), Name = name, Ext = ext, Folder = folder, UploadedBy = U(email), UploadedAt = Now });
+            Doc("PY-118", "PE_Arquitetura_Pranchas.pdf", "PDF", "Arquitetura", "rui.cardoso@atelier-norte.pt");
+            Doc("PY-118", "Modelo_BIM_Coordenacao.ifc", "IFC", "Especialidades MEP", "miguel.nunes@atelier-norte.pt");
+            Doc("PY-118", "Calculo_Estrutural_P2-P3.xlsx", "XLS", "Estruturas", "joana.faria@atelier-norte.pt");
+            Doc("PY-118", "Memoria_Descritiva_Arq.docx", "DOC", "Licenciamento", "rui.cardoso@atelier-norte.pt");
+            Doc("PY-117", "Levantamento_Topografico.dwg", "DWG", "Licenciamento", "pedro.dias@atelier-norte.pt");
+            Doc("PY-118", "Render_Fachada_Norte.jpg", "JPG", "Arquitetura", "sofia.lemos@atelier-norte.pt");
+            await db.SaveChangesAsync();
+        }
+        Console.WriteLine($"seed-extras: approvals={await db.Approvals.CountAsync()} documents={await db.Documents.CountAsync()}");
+    }
+
     private static async Task PrintCounts(AppDbContext db)
     {
         Console.WriteLine($"  tenants={await db.Tenants.CountAsync()}  users={await db.Users.CountAsync()}  clients={await db.Clients.CountAsync()}");
