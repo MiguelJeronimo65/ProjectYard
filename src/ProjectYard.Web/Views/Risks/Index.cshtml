@@ -1,0 +1,28 @@
+@model List<Risk>
+@{
+    ViewData["Title"] = "Riscos";
+    string Sev(int p, int i) => (p * i) >= 15 ? "b-red" : (p * i) >= 8 ? "b-amber" : "b-gray";
+}
+<div class="content">
+    <div class="page-head"><div><h1>Riscos</h1><p>@Model.Count riscos · ordenados por severidade (probabilidade × impacto).</p></div></div>
+    <div class="card">
+        <table class="tbl">
+            <thead><tr><th>Risco</th><th>Projeto</th><th>Categoria</th><th>Prob.</th><th>Impacto</th><th>Severidade</th><th>Responsável</th><th>Estado</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td style="font-weight:700;">@r.Title</td>
+                    <td><span class="badge b-gray">@(r.Project?.Code ?? "")</span></td>
+                    <td>@(r.Category ?? "—")</td>
+                    <td class="num">@r.Probability</td>
+                    <td class="num">@r.Impact</td>
+                    <td><span class="badge @Sev(r.Probability, r.Impact)">@(r.Probability * r.Impact)</span></td>
+                    <td>@(r.Owner?.Name ?? "—")</td>
+                    <td><span class="badge @Ui.RiskStatus(r.Status)">@r.Status</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

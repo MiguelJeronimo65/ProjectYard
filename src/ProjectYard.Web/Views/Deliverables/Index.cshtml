@@ -1,0 +1,24 @@
+@model List<Deliverable>
+@{ ViewData["Title"] = "Entregáveis"; }
+<div class="content">
+    <div class="page-head"><div><h1>Entregáveis</h1><p>@Model.Count entregáveis.</p></div></div>
+    <div class="card">
+        <table class="tbl">
+            <thead><tr><th>Entregável</th><th>Projeto</th><th>Fase</th><th>Versão</th><th>Responsável</th><th>Prazo</th><th>Estado</th></tr></thead>
+            <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td style="font-weight:700;">@d.Name</td>
+                    <td><span class="badge b-gray">@(d.Project?.Code ?? "")</span></td>
+                    <td>@(d.Phase ?? "—")</td>
+                    <td>@(d.Version ?? "—")</td>
+                    <td>@(d.Owner?.Name ?? "—")</td>
+                    <td>@Ui.Date(d.DueDate)</td>
+                    <td><span class="badge @Ui.DeliverableStatus(d.Status)">@d.Status</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

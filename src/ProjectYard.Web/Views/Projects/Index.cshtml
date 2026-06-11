@@ -1,0 +1,26 @@
+@model List<Project>
+@{ ViewData["Title"] = "Projetos"; }
+<div class="content">
+    <div class="page-head"><div><h1>Projetos</h1><p>@Model.Count projetos no teu workspace.</p></div></div>
+    <div class="card">
+        <table class="tbl">
+            <thead>
+                <tr><th>Código</th><th>Projeto</th><th>Cliente</th><th>Gestor</th><th>Estado</th><th>Fase atual</th><th style="text-align:right;">Honorários</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var p in Model)
+            {
+                <tr class="row-click" onclick="location.href='@Url.Action("Details", new { id = p.Id })'">
+                    <td><span class="badge b-gray">@p.Code</span></td>
+                    <td style="font-weight:700;">@p.Name</td>
+                    <td>@(p.Client?.Company ?? "—")</td>
+                    <td>@(p.Manager?.Name ?? "—")</td>
+                    <td><span class="badge @Ui.ProjectStatus(p.Status)">@p.Status</span></td>
+                    <td>@(p.PhaseCurrent ?? "—")</td>
+                    <td class="num" style="text-align:right;font-weight:700;">@Ui.Eur(p.Fees)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,49 @@
+@{
+    ViewData["Title"] = "Pagamentos";
+    var invoices = (List<Invoice>)ViewBag.Invoices;
+    var milestones = (List<PaymentMilestone>)ViewBag.Milestones;
+}
+<div class="content">
+    <div class="page-head"><div><h1>Pagamentos</h1><p>Faturas e plano de pagamentos.</p></div></div>
+
+    <div class="card" style="margin-bottom:22px;">
+        <div class="card-pad card-h"><h3>Faturas</h3><span class="sub">@invoices.Count</span></div>
+        <table class="tbl">
+            <thead><tr><th>Número</th><th>Projeto</th><th>Milestone</th><th>Emitida</th><th>Vencimento</th><th style="text-align:right;">Valor</th><th>Estado</th></tr></thead>
+            <tbody>
+            @foreach (var i in invoices)
+            {
+                <tr>
+                    <td style="font-weight:700;">@i.Number</td>
+                    <td><span class="badge b-gray">@(i.Project?.Code ?? "")</span></td>
+                    <td class="muted">@(i.MilestoneTxt ?? "—")</td>
+                    <td>@Ui.Date(i.IssuedAt)</td>
+                    <td>@Ui.Date(i.DueAt)</td>
+                    <td class="num" style="text-align:right;font-weight:700;">@Ui.Eur(i.Amount)</td>
+                    <td><span class="badge @Ui.InvoiceStatus(i.Status)">@i.Status</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-pad card-h"><h3>Milestones de pagamento</h3><span class="sub">@milestones.Count</span></div>
+        <table class="tbl">
+            <thead><tr><th>Milestone</th><th>Projeto</th><th>%</th><th style="text-align:right;">Valor</th><th>Gatilho</th><th>Estado</th></tr></thead>
+            <tbody>
+            @foreach (var m in milestones)
+            {
+                <tr>
+                    <td style="font-weight:700;">@m.Name</td>
+                    <td><span class="badge b-gray">@(m.Project?.Code ?? "")</span></td>
+                    <td class="num">@(m.Pct.HasValue ? m.Pct.Value.ToString("0.#") + "%" : "—")</td>
+                    <td class="num" style="text-align:right;font-weight:700;">@Ui.Eur(m.Amount)</td>
+                    <td class="muted">@(m.TriggerType ?? "—")</td>
+                    <td><span class="badge @Ui.MilestoneStatus(m.Status)">@m.Status</span></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
