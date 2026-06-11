@@ -66,6 +66,26 @@ if (args.Contains("verify-login"))
     return;
 }
 
+// Utilitário dev: `dotnet run -- purge-tenant <slug>` — apaga um tenant sem projetos + os seus utilizadores.
+if (args.Contains("purge-tenant"))
+{
+    var slug = args.SkipWhile(a => a != "purge-tenant").Skip(1).FirstOrDefault();
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.BypassTenantFilter = true;
+    var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == slug);
+    if (tenant is null) { Console.WriteLine($"purge-tenant: '{slug}' não encontrado."); return; }
+    tenant.OwnerUserId = null;
+    await db.SaveChangesAsync();
+    var users = await db.Users.Where(u => u.TenantId == tenant.Id).ToListAsync();
+    db.Users.RemoveRange(users);
+    await db.SaveChangesAsync();            // apagar utilizadores primeiro (EF não conhece a FK users->tenant)
+    db.Tenants.Remove(tenant);
+    await db.SaveChangesAsync();
+    Console.WriteLine($"purge-tenant: removido '{slug}' + {users.Count} utilizador(es).");
+    return;
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
