@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using ProjectYard.Data.Data;
 using ProjectYard.Web.Identity;
 
@@ -33,9 +34,20 @@ public class TenantMiddleware
             if (isSuperadmin)
             {
                 var viewTenant = context.Session.GetString(ViewTenantKey);
-                if (long.TryParse(viewTenant, out var vt))
+                if (!long.TryParse(viewTenant, out var vt))
+                {
+                    // Como no protótipo, o superadmin opera sempre "a ver" um workspace (modo plataforma).
+                    // Sem escolha em sessão (1.º acesso ou sessão expirada), seleciona o workspace por omissão.
+                    db.BypassTenantFilter = true;
+                    vt = await db.Tenants.Where(t => t.Status != "Suspenso")
+                        .OrderByDescending(t => t.Slug == "atelier-norte").ThenBy(t => t.Id)
+                        .Select(t => t.Id).FirstOrDefaultAsync();
+                    if (vt > 0) context.Session.SetString(ViewTenantKey, vt.ToString());
+                }
+                if (vt > 0)
                 {
                     // Modo plataforma: a ver um workspace específico (apoio), auditado.
+                    // As consolas (Workspaces/Conformidade) sobrepõem isto com BypassTenantFilter=true.
                     db.BypassTenantFilter = false;
                     db.CurrentTenantId = vt;
                     _logger.LogInformation(
@@ -46,9 +58,6 @@ public class TenantMiddleware
                 {
                     db.BypassTenantFilter = true;
                     db.CurrentTenantId = null;
-                    _logger.LogInformation(
-                        "AUDITORIA plataforma: superadmin {User} em consola (atravessa tenants) — {Method} {Path}",
-                        user.FindFirstValue(ClaimTypes.NameIdentifier), context.Request.Method, context.Request.Path);
                 }
             }
             else if (long.TryParse(user.FindFirstValue(AppUserClaimsPrincipalFactory.TenantId), out var tenantId))
