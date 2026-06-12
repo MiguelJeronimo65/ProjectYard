@@ -44,6 +44,15 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add(new AuthorizeFilter(policy));
 });
 
+// Sessão: usada pelo modo plataforma (superadmin "abre" um workspace e vê-o como apoio, com auditoria).
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(o =>
+{
+    o.Cookie.Name = ".ProjectYard.Session";
+    o.Cookie.HttpOnly = true;
+    o.IdleTimeout = TimeSpan.FromHours(8);
+});
+
 var app = builder.Build();
 
 // Comandos de linha (não correm no arranque normal do servidor).
@@ -104,6 +113,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseSession();
 
 // Define o tenant atual no DbContext a partir do utilizador autenticado (superadmin atravessa, com auditoria).
 app.UseMiddleware<TenantMiddleware>();

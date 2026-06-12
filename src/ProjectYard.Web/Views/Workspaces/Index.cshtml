@@ -1,45 +1,98 @@
-@model List<Tenant>
+@model WorkspacesViewModel
 @{
     ViewData["Title"] = "Workspaces";
-    var projByTenant = (Dictionary<long, int>)ViewBag.ProjectsByTenant;
-    var usersByTenant = (Dictionary<long, int>)ViewBag.UsersByTenant;
-    string StatusBadge(string s) => s switch
-    {
-        "Ativo" => "b-green",
-        "Trial" => "b-amber",
-        "Suspenso" => "b-red",
-        _ => "b-gray"
-    };
+    string EstTag(string e) => e == "Ativo" ? "b-green" : e == "Trial" ? "b-amber" : e == "Suspenso" ? "b-red" : "b-gray";
+    string PlanTag(string p) => p == "Enterprise" ? "b-violet" : p == "Pro" ? "b-gold" : "b-gray";
 }
 <div class="content">
     <div class="page-head">
         <div>
             <h1>Workspaces</h1>
-            <p>Consola de plataforma — todos os tenants. @Model.Count workspaces.</p>
+            <p>Consola de plataforma · todos os ateliers que operam no ProjectYard</p>
         </div>
-        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo workspace</a></div>
+        <div class="page-head__actions">
+            <a class="btn btn-ghost" asp-action="Export">@Icons.Render("download", 16) Exportar</a>
+            <a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 16) Novo workspace</a>
+        </div>
     </div>
 
-    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));">
-        @foreach (var t in Model)
+    <div class="grid cols-4" style="margin-bottom:22px;">
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("building", 23)</div></div>
+            <div><div class="stat__val">@Model.Total</div><div class="stat__label">Workspaces</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.Ativos ativos · @Model.Trials em trial</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("folder", 23)</div></div>
+            <div><div class="stat__val">@Model.ProjetosTotais</div><div class="stat__label">Projetos (todos)</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Agregado da plataforma</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--success-soft);color:var(--success);">@Icons.Render("euro", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(Model.FaturadoTotal)</div><div class="stat__label">Faturação agregada</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Ano · todos os ateliers</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--warning-soft);color:var(--warning);">@Icons.Render("alert", 23)</div></div>
+            <div><div class="stat__val">@(Model.Trials + Model.Suspensos)</div><div class="stat__label">A precisar de atenção</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.Trials trial · @Model.Suspensos suspenso</div>
+        </div>
+    </div>
+
+    <div class="grid cols-3">
+        @foreach (var c in Model.Cards)
         {
-            var projs = projByTenant.TryGetValue(t.Id, out var pc) ? pc : 0;
-            var membros = usersByTenant.TryGetValue(t.Id, out var uc) ? uc : 0;
-            <div class="card card-pad">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-                    <span class="avatar sq" style="width:42px;height:42px;background:@(t.PrimaryColor ?? "#2c3e51");font-size:15px;">@string.Concat(t.Name.Split(' ').Take(2).Select(w => char.ToUpper(w[0])))</span>
+            var t = c.Tenant;
+            <div class="card card-pad rise" style="display:flex;flex-direction:column;gap:15px;">
+                <div style="display:flex;align-items:flex-start;gap:12px;">
+                    <span class="avatar sq" style="width:48px;height:48px;background:@(t.PrimaryColor ?? "#2c3e51");font-size:17px;">@Components.Initials(t.Name)</span>
                     <div style="flex:1;min-width:0;">
-                        <div style="font-weight:700;font-size:16px;">@t.Name</div>
+                        <div style="font-weight:700;font-size:15.5px;font-family:var(--font-display);">@t.Name</div>
                         <div class="muted-3" style="font-size:12.5px;font-weight:600;">projectyard.app/@t.Slug</div>
                     </div>
-                    <span class="badge @StatusBadge(t.Status)">@t.Status</span>
+                    <span class="badge @EstTag(t.Status)">@t.Status</span>
                 </div>
-                <div style="display:flex;gap:22px;font-size:13px;">
-                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Plano</div><div style="font-weight:700;">@t.Plan</div></div>
-                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Projetos</div><div class="num" style="font-weight:700;">@projs</div></div>
-                    <div><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Membros</div><div class="num" style="font-weight:700;">@membros</div></div>
+
+                <div style="display:flex;gap:10px;">
+                    <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:11px 12px;">
+                        <div class="num" style="font-weight:700;font-size:17px;letter-spacing:-0.02em;">@c.Projetos</div>
+                        <div class="muted-3" style="font-size:11.5px;font-weight:600;">Projetos</div>
+                    </div>
+                    <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:11px 12px;">
+                        <div class="num" style="font-weight:700;font-size:17px;letter-spacing:-0.02em;">@c.Membros</div>
+                        <div class="muted-3" style="font-size:11.5px;font-weight:600;">Membros</div>
+                    </div>
+                    <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:11px 12px;">
+                        <div class="num" style="font-weight:700;font-size:17px;letter-spacing:-0.02em;">@Ui.Kk(c.Faturado)</div>
+                        <div class="muted-3" style="font-size:11.5px;font-weight:600;">Faturado</div>
+                    </div>
                 </div>
+
+                <div class="divider" style="margin:0;"></div>
+
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="flex:1;min-width:0;">
+                        <div class="muted-3" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Proprietário</div>
+                        <div style="font-weight:700;font-size:13px;">@c.OwnerName</div>
+                    </div>
+                    <span class="badge @PlanTag(t.Plan)" style="font-size:11px;">@t.Plan</span>
+                </div>
+
+                @if (t.Status == "Suspenso")
+                {
+                    <button class="btn btn-primary" type="button" disabled style="width:100%;justify-content:center;">@Icons.Render("lock", 15) Suspenso</button>
+                }
+                else
+                {
+                    <form asp-action="Open" asp-route-id="@t.Id" method="post" style="margin:0;">
+                        <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;">@Icons.Render("arrowRight", 16) Abrir workspace</button>
+                    </form>
+                }
             </div>
         }
+    </div>
+
+    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:18px;display:flex;align-items:center;gap:7px;">
+        @Icons.Render("shield", 14) Acesso de plataforma · ao abrir um workspace entras em modo de apoio, com registo de auditoria.
     </div>
 </div>

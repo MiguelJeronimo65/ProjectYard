@@ -9,6 +9,13 @@ public static class Ui
     private static readonly string[] Mon = { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
 
     public static string Eur(decimal? n) => (n ?? 0m).ToString("#,##0", Pt) + " €";
+
+    /// <summary>€840k / €12,9k — inteiro acima de 100k, 1 casa abaixo (igual ao kk() do protótipo).</summary>
+    public static string Kk(decimal? n)
+    {
+        var v = n ?? 0m;
+        return "€" + (v >= 100000 ? Math.Round(v / 1000).ToString("#,##0", Pt) : (v / 1000).ToString("0.0", Pt)) + "k";
+    }
     public static string Num(decimal? n) => (n ?? 0m).ToString("#,##0.##", Pt);
 
     public static string Date(DateOnly? d) => d is { } x ? $"{x.Day} {Mon[x.Month - 1]} {x.Year}" : "—";

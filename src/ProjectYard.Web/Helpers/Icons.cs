@@ -39,6 +39,14 @@ public static class Icons
         ["menu"] = new[] { "M3 6h18", "M3 12h18", "M3 18h18" },
         ["gantt"] = new[] { "M8 6h12", "M4 12h10", "M10 18h8" },
         ["briefcase"] = new[] { "M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z", "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M2 12h20" },
+        ["sun"] = new[] { "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M12 1v2", "M12 21v2", "M4.2 4.2l1.4 1.4", "M18.4 18.4l1.4 1.4", "M1 12h2", "M21 12h2", "M4.2 19.8l1.4-1.4", "M18.4 5.6l1.4-1.4" },
+        ["moon"] = new[] { "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" },
+        ["monitor"] = new[] { "M3 4h18v12H3z", "M8 20h8", "M12 16v4" },
+        ["download"] = new[] { "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "m7 10 5 5 5-5", "M12 15V3" },
+        ["x"] = new[] { "M18 6 6 18", "M6 6l12 12" },
+        ["chevL"] = new[] { "m15 18-6-6 6-6" },
+        ["chevR"] = new[] { "m9 18 6-6-6-6" },
+        ["spark2"] = new[] { "M12 3v4", "M12 17v4", "M3 12h4", "M17 12h4" },
     };
 
     public static IHtmlContent Render(string name, int size = 20)

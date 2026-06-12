@@ -7,10 +7,14 @@ namespace ProjectYard.Web.Tenancy;
 /// <summary>
 /// Define o tenant atual no AppDbContext a partir do utilizador autenticado:
 ///  - utilizador de tenant  => CurrentTenantId = o seu tenant; query filters ativos.
-///  - superadmin (plataforma) => BypassTenantFilter = true; atravessa todos os tenants COM auditoria.
+///  - superadmin (plataforma) => por omissão BypassTenantFilter = true (consola, atravessa tudo);
+///    se "abriu" um workspace (sessão ViewTenantKey), passa a ver SÓ esse tenant — modo de apoio,
+///    COM registo de auditoria.
 /// </summary>
 public class TenantMiddleware
 {
+    public const string ViewTenantKey = "py.view_tenant";
+
     private readonly RequestDelegate _next;
     private readonly ILogger<TenantMiddleware> _logger;
 
@@ -28,11 +32,24 @@ public class TenantMiddleware
             var isSuperadmin = user.FindFirstValue(AppUserClaimsPrincipalFactory.IsSuperadmin) == "true";
             if (isSuperadmin)
             {
-                db.BypassTenantFilter = true;
-                db.CurrentTenantId = null;
-                // Auditoria: acesso transversal a tenants pelo superadmin.
-                _logger.LogInformation("Acesso de plataforma (superadmin {User}) a {Method} {Path} — atravessa tenants.",
-                    user.FindFirstValue(ClaimTypes.NameIdentifier), context.Request.Method, context.Request.Path);
+                var viewTenant = context.Session.GetString(ViewTenantKey);
+                if (long.TryParse(viewTenant, out var vt))
+                {
+                    // Modo plataforma: a ver um workspace específico (apoio), auditado.
+                    db.BypassTenantFilter = false;
+                    db.CurrentTenantId = vt;
+                    _logger.LogInformation(
+                        "AUDITORIA plataforma: superadmin {User} a ver tenant {TenantId} — {Method} {Path}",
+                        user.FindFirstValue(ClaimTypes.NameIdentifier), vt, context.Request.Method, context.Request.Path);
+                }
+                else
+                {
+                    db.BypassTenantFilter = true;
+                    db.CurrentTenantId = null;
+                    _logger.LogInformation(
+                        "AUDITORIA plataforma: superadmin {User} em consola (atravessa tenants) — {Method} {Path}",
+                        user.FindFirstValue(ClaimTypes.NameIdentifier), context.Request.Method, context.Request.Path);
+                }
             }
             else if (long.TryParse(user.FindFirstValue(AppUserClaimsPrincipalFactory.TenantId), out var tenantId))
             {
@@ -41,7 +58,6 @@ public class TenantMiddleware
             }
             else
             {
-                // Sem tenant e sem ser superadmin: não vê dados de domínio.
                 db.BypassTenantFilter = false;
                 db.CurrentTenantId = null;
             }

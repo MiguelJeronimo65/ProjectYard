@@ -15,7 +15,8 @@ public class HomeController : Controller
 
     public async Task<IActionResult> Index()
     {
-        if (User.FindFirstValue(AppUserClaimsPrincipalFactory.IsSuperadmin) == "true")
+        // Superadmin sem workspace aberto → consola; com workspace aberto (modo plataforma) vê o dashboard desse tenant.
+        if (User.FindFirstValue(AppUserClaimsPrincipalFactory.IsSuperadmin) == "true" && _db.CurrentTenantId is null)
             return RedirectToAction("Index", "Workspaces");
 
         var projects = await _db.Projects.Include(p => p.Client).OrderBy(p => p.Code).ToListAsync();
