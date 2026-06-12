@@ -17,6 +17,9 @@ public class DashboardViewModel
     public decimal Vencido { get; set; }
     public decimal AReceber => Pendente + Vencido;
     public int FaturasEmitidas { get; set; }
+    public int NovosProjetos { get; set; }
+    public int? FaturadoTrendPct { get; set; }
+    public int VencidasCount { get; set; }
     public int PagoPct { get; set; }
     public int PendentePct { get; set; }
     public int VencidoPct { get; set; }

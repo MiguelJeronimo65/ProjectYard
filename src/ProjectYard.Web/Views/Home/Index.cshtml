@@ -25,12 +25,12 @@
     @* ===== Band executiva ===== *@
     <div class="grid cols-4" style="margin-bottom:20px;">
         <div class="card card-pad stat rise stat-link" onclick="location.href='@projUrl'">
-            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("folder", 23)</div><span class="stat__go">@Icons.Render("arrowRight", 17)</span></div>
+            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("folder", 23)</div>@if (Model.NovosProjetos > 0) { <span class="trend up">@Icons.Render("arrowUp", 13) +@Model.NovosProjetos</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
             <div><div class="stat__val">@Model.ProjetosAtivos</div><div class="stat__label">Projetos ativos</div></div>
-            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.AIniciar a iniciar</div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.AIniciar a iniciar esta semana</div>
         </div>
         <div class="card card-pad stat rise stat-link" onclick="location.href='@repUrl'">
-            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("euro", 23)</div><span class="stat__go">@Icons.Render("arrowRight", 17)</span></div>
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("euro", 23)</div>@if (Model.FaturadoTrendPct is { } ftp) { <span class="trend @(ftp >= 0 ? "up" : "down")">@Icons.Render("arrowUp", 13) @(ftp >= 0 ? "+" : "")@ftp%</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
             <div><div class="stat__val">@Kk(Model.FaturadoAno)</div><div class="stat__label">Faturado (ano)</div></div>
             <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.FaturasEmitidas faturas emitidas</div>
         </div>
@@ -40,9 +40,9 @@
             <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.PagoPct% da faturação</div>
         </div>
         <div class="card card-pad stat rise stat-link" onclick="location.href='@payUrl'">
-            <div class="stat__top"><div class="stat__icon" style="background:var(--warning-soft);color:var(--warning);">@Icons.Render("clock", 23)</div><span class="trend down">@Icons.Render("arrowUp", 13) @Kk(Model.Vencido) venc.</span></div>
+            <div class="stat__top"><div class="stat__icon" style="background:var(--warning-soft);color:var(--warning);">@Icons.Render("clock", 23)</div>@if (Model.VencidasCount > 0) { <span class="trend down"><span style="display:inline-flex;transform:rotate(180deg);">@Icons.Render("arrowUp", 13)</span> @Model.VencidasCount @(Model.VencidasCount == 1 ? "vencida" : "vencidas")</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
             <div><div class="stat__val">@Kk(Model.AReceber)</div><div class="stat__label">A receber</div></div>
-            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.VencidoPct% vencido</div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Kk(Model.Vencido) vencido</div>
         </div>
     </div>
 
@@ -83,11 +83,12 @@
                 </div>
             </div>
             <script>
-                var revData = {
-                    m: { head: '@HeadVal(Model.Revenue)', cap: '@capM' },
-                    t: { head: '@HeadVal(Model.RevenueTri)', cap: '@capT' },
-                    a: { head: '@HeadVal(Model.RevenueAno)', cap: '@capA' },
-                };
+                var revData = @Json.Serialize(new
+                {
+                    m = new { head = HeadVal(Model.Revenue), cap = capM },
+                    t = new { head = HeadVal(Model.RevenueTri), cap = capT },
+                    a = new { head = HeadVal(Model.RevenueAno), cap = capA },
+                });
                 function setRevPeriod(p) {
                     document.querySelectorAll('[data-rev]').forEach(d => d.style.display = d.dataset.rev === p ? '' : 'none');
                     document.querySelectorAll('#revSeg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
@@ -114,7 +115,7 @@
         <h2 class="display" style="font-size:19px;font-weight:700;letter-spacing:-0.015em;margin:0;">Portfólio em foco</h2>
         <span class="muted-3" style="font-size:13.5px;font-weight:600;">@Model.ProjetosAtivos ativos · @Model.EmRisco em risco</span>
         <div style="margin-left:auto;display:flex;gap:8px;">
-            <a class="btn btn-soft btn-sm" asp-controller="Gantt" asp-action="Index">@Icons.Render("gantt", 15) Cronograma</a>
+            <a class="btn btn-soft btn-sm" asp-controller="Gantt" asp-action="Index">@Icons.Render("gantt", 15) Cronograma global</a>
             <a class="btn btn-soft btn-sm" asp-controller="Projects" asp-action="Index">Ver todos os projetos @Icons.Render("arrowRight", 15)</a>
         </div>
     </div>
@@ -165,7 +166,7 @@
                         </div>
                     }
                 </div>
-                <a class="btn btn-ghost btn-sm" asp-controller="Timesheets" asp-action="Index" style="width:100%;justify-content:center;margin-top:14px;">Registo de horas @Icons.Render("arrowRight", 14)</a>
+                <a class="btn btn-ghost btn-sm" asp-controller="Timesheets" asp-action="Index" style="width:100%;justify-content:center;margin-top:14px;">Registo de horas e utilização @Icons.Render("arrowRight", 14)</a>
             </div>
 
             <div class="card card-pad">

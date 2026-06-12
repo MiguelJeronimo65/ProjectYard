@@ -27,6 +27,15 @@ public class HomeController : Controller
         var vencido = invoices.Where(i => i.Status == "Vencido").Sum(i => i.Amount);
         int Pct(decimal n) => faturado <= 0 ? 0 : (int)Math.Round(n / faturado * 100);
 
+        // Badges de tendência da banda executiva (protótipo: "+3", "+18%", "1 vencida")
+        var inicioMes = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var novosProjetos = projects.Count(p => p.CreatedAt >= inicioMes);
+        var anoAtual = DateTime.Today.Year;
+        var fatAnoAtual = invoices.Where(i => i.IssuedAt?.Year == anoAtual).Sum(i => i.Amount);
+        var fatAnoAnterior = invoices.Where(i => i.IssuedAt?.Year == anoAtual - 1).Sum(i => i.Amount);
+        int? faturadoTrendPct = fatAnoAnterior > 0 ? (int)Math.Round((fatAnoAtual - fatAnoAnterior) / fatAnoAnterior * 100) : null;
+        var vencidasCount = invoices.Count(i => i.Status == "Vencido");
+
         // Receita por mês / trimestre / ano (k€) a partir das faturas emitidas — alimenta o toggle do gráfico.
         var months = new[] { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
         var dated = invoices.Where(i => i.IssuedAt != null).ToList();
@@ -47,7 +56,8 @@ public class HomeController : Controller
             .ToList();
 
         // Projetos em foco (Em curso / Em risco) com contagens reais
-        var focusProjects = projects.Where(p => p.Status == "Em curso" || p.Status == "Em risco").Take(4).ToList();
+        var focusProjects = projects.Where(p => p.Status == "Em curso" || p.Status == "Em risco")
+            .OrderByDescending(p => p.Code).Take(4).ToList();
         var focus = new List<FocusProject>();
         foreach (var p in focusProjects)
         {
@@ -89,6 +99,9 @@ public class HomeController : Controller
             Pendente = pendente,
             Vencido = vencido,
             FaturasEmitidas = invoices.Count,
+            NovosProjetos = novosProjetos,
+            FaturadoTrendPct = faturadoTrendPct,
+            VencidasCount = vencidasCount,
             PagoPct = Pct(recebido),
             PendentePct = Pct(pendente),
             VencidoPct = Pct(vencido),
