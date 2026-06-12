@@ -44,6 +44,10 @@ public class AccountController : Controller
         var result = await _signIn.PasswordSignInAsync(user, vm.Password, vm.RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
+            // Primeiro acesso de um convidado ativa a conta; regista última atividade (coluna da Equipa).
+            if (user.Status == "Pendente") user.Status = "Ativo";
+            user.LastActiveAt = DateTime.Now;
+            await _users.UpdateAsync(user);
             if (Url.IsLocalUrl(vm.ReturnUrl))
                 return Redirect(vm.ReturnUrl!);
             return RedirectToAction("Index", "Home");
