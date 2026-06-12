@@ -305,6 +305,35 @@ public static class DataSeeder
             Doc("PY-118", "Render_Fachada_Norte.jpg", "JPG", "Arquitetura", "sofia.lemos@atelier-norte.pt");
             await db.SaveChangesAsync();
         }
+        // Canais de chat cross-tenant (para a Conformidade RGPD ter metadados de toda a plataforma).
+        if (await db.ChatChannels.CountAsync() <= 2)
+        {
+            var tens = await db.Tenants.ToDictionaryAsync(t => t.Slug);
+            var owners = await db.Users.Where(u => u.TenantId != null).ToListAsync();
+            ApplicationUser OwnerOf(string slug) => owners.First(u => u.TenantId == tens[slug].Id && u.Role == "Owner");
+
+            async Task<E.ChatChannel> Chan(string slug, string? name, string type, int? retention, bool hold, int msgs)
+            {
+                var ch = new E.ChatChannel { TenantId = tens[slug].Id, Type = type, Name = name, RetentionMonths = retention, LegalHold = hold, CreatedAt = Now.AddMonths(-2) };
+                db.ChatChannels.Add(ch);
+                await db.SaveChangesAsync();
+                var owner = OwnerOf(slug);
+                db.Add(new E.ChatChannelMember { ChannelId = ch.Id, UserId = owner.Id });
+                for (int i = 0; i < msgs; i++)
+                    db.ChatMessages.Add(new E.ChatMessage { TenantId = tens[slug].Id, ChannelId = ch.Id, SenderId = owner.Id, Body = $"Atualização {i + 1} — ponto de situação do trabalho em curso.", CreatedAt = Now.AddDays(-(i % 28)).AddMinutes(-i * 7) });
+                await db.SaveChangesAsync();
+                return ch;
+            }
+
+            await Chan("studio-praca", "torre-oriente-geral", "channel", 24, false, 34);
+            await Chan("studio-praca", null, "direct", null, true, 12);
+            await Chan("forma-betao", "obra-ribeira", "channel", 12, false, 22);
+            await Chan("forma-betao", null, "direct", null, true, 8);
+            await Chan("engforma", "licenciamento", "channel", 6, false, 14);
+            await Chan("risco-studio", "geral", "channel", null, false, 4);
+            Console.WriteLine("seed-extras: canais de chat cross-tenant criados.");
+        }
+
         // Datas das fases (para o Cronograma): distribui o período do projeto pelas suas fases.
         if (await db.ProjectPhases.AnyAsync(p => p.StartPlanned == null))
         {

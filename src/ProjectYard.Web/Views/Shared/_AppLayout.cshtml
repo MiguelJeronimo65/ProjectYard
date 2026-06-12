@@ -116,7 +116,7 @@
                 <a class="nav-item @(ctrl == "Workspaces" ? "active" : "")" href="@Url.Action("Index","Workspaces")" title="Workspaces">
                     @Icons.Render("building", 19)<span>Workspaces</span>
                 </a>
-                <a class="nav-item" href="#" title="Conformidade RGPD" style="opacity:.5;">@Icons.Render("shield", 19)<span>Conformidade RGPD</span></a>
+                <a class="nav-item @(ctrl == "Compliance" ? "active" : "")" href="@Url.Action("Index","Compliance")" title="Conformidade RGPD">@Icons.Render("shield", 19)<span>Conformidade RGPD</span></a>
             }
             @foreach (var g in groups)
             {
