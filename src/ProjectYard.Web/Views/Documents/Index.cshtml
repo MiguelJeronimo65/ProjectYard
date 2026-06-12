@@ -1,25 +1,127 @@
-@model List<Document>
-@{ ViewData["Title"] = "Documentos"; }
+@{
+    ViewData["Title"] = "Documentos";
+    var all = (List<Document>)ViewBag.All;
+    var shown = (List<Document>)ViewBag.Shown;
+    string? pasta = ViewBag.Pasta;
+    var folders = (List<string?>)ViewBag.Folders;
+    var projects = (IEnumerable<dynamic>)ViewBag.Projects;
+    string ExtColor(string? ext) => ext switch
+    {
+        "PDF" => "#e8526b", "IFC" => "#6a5af9", "XLS" or "XLSX" => "#18b07b",
+        "DOC" or "DOCX" => "#21a8c4", "DWG" => "#f5a524", "JPG" or "PNG" => "#9b59f5", _ => "#8a949e"
+    };
+    string FolderColor(string? f) => f switch
+    {
+        "Arquitetura" => "var(--primary)", "Estruturas" => "var(--success)",
+        "Especialidades MEP" => "var(--info)", "Licenciamento" => "var(--accent-700)", _ => "var(--text-3)"
+    };
+    string Size(long? b) => b is null ? "—" : b >= 1_000_000_000 ? (b.Value / 1_000_000_000.0).ToString("0.#") + " GB" : b >= 1_000_000 ? (b.Value / 1_000_000.0).ToString("0.#") + " MB" : (b.Value / 1000.0).ToString("0.#") + " KB";
+    var usedGb = (all.Sum(d => d.SizeBytes ?? 0) / 1_000_000_000.0);
+}
 <div class="content">
-    <div class="page-head"><div><h1>Documentos</h1><p>@Model.Count documentos na base documental.</p></div></div>
+    <div class="page-head">
+        <div><h1>Documentos</h1><p>Base documental separada · @usedGb.ToString("0.#") GB usados · @all.Count ficheiros</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('upFile').click()">@Icons.Render("download", 16) Carregar</button>
+        </div>
+    </div>
+
+    @* Dropzone + upload form *@
+    <form asp-action="Upload" method="post" enctype="multipart/form-data" id="upForm">
+        <input type="file" id="upFile" name="file" style="display:none;" onchange="document.getElementById('upForm').submit()" />
+        <input type="hidden" name="folder" value="@pasta" />
+        <div class="card" id="dropzone"
+             style="border:2px dashed var(--border-2);background:var(--surface-2);padding:26px;display:flex;align-items:center;gap:16px;margin-bottom:22px;transition:background .12s,border-color .12s;cursor:pointer;"
+             onclick="document.getElementById('upFile').click()">
+            <div style="width:50px;height:50px;border-radius:13px;background:var(--accent-soft);color:var(--accent-700);display:grid;place-items:center;">@Icons.Render("download", 24)</div>
+            <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;" id="dzTitle">Arrasta ficheiros para aqui ou carrega do teu computador</div>
+                <div class="muted-3" style="font-size:13px;font-weight:600;">PDF, DWG, IFC, DOCX, XLSX, imagens · versionamento automático</div>
+            </div>
+            <button class="btn btn-gold btn-sm" type="button" onclick="event.stopPropagation();document.getElementById('upFile').click()">Selecionar ficheiros</button>
+        </div>
+    </form>
+
+    @* Pastas *@
+    <div class="grid cols-4" style="margin-bottom:22px;">
+        @foreach (var f in folders)
+        {
+            var on = pasta == f;
+            var n = all.Count(d => d.Folder == f);
+            <a class="card card-pad" href="@Url.Action("Index", new { pasta = on ? null : f })"
+               style="display:flex;align-items:center;gap:13px;text-align:left;color:inherit;border-color:@(on ? "var(--accent)" : "var(--border)");@(on ? "box-shadow:0 0 0 3px var(--accent-soft);" : "")">
+                <div style="color:@FolderColor(f);">@Icons.Render("folder", 30)</div>
+                <div style="flex:1;"><div style="font-weight:700;font-size:14.5px;">@f</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@n ficheiros</div></div>
+                @Icons.Render(on ? "check" : "chevR", 17)
+            </a>
+        }
+    </div>
+
     <div class="card">
+        <div class="card-pad" style="padding-bottom:6px;display:flex;align-items:center;gap:10px;">
+            <h3 style="margin:0;font-family:var(--font-display);font-size:17px;">@(pasta ?? "Todos os ficheiros")</h3>
+            @if (pasta != null) { <a class="btn btn-ghost btn-sm" href="@Url.Action("Index")">@Icons.Render("x", 13) Limpar pasta</a> }
+            <span class="muted-3" style="font-size:12.5px;font-weight:600;">@shown.Count ficheiro@(shown.Count == 1 ? "" : "s")</span>
+        </div>
         <table class="tbl">
-            <thead><tr><th>Nome</th><th>Projeto</th><th>Pasta</th><th>Tipo</th><th>Versão</th><th>Carregado por</th><th>Quando</th></tr></thead>
+            <thead><tr><th>Ficheiro</th><th>Registo ligado</th><th>Versão</th><th>Tamanho</th><th>Modificado por</th><th></th></tr></thead>
             <tbody>
-            @foreach (var d in Model)
+            @foreach (var d in shown)
             {
+                var c = ExtColor(d.Ext);
                 <tr>
-                    <td style="font-weight:700;">@d.Name</td>
-                    <td><span class="badge b-gray">@(d.Project?.Code ?? "—")</span></td>
-                    <td>@(d.Folder ?? "—")</td>
-                    <td><span class="badge b-blue">@(d.Ext ?? "—")</span></td>
-                    <td>@(d.Version ?? "—")</td>
-                    <td>@(d.Uploader?.Name ?? "—")</td>
-                    <td class="muted">@Ui.Date(d.UploadedAt)</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:38px;height:38px;border-radius:9px;background:@(c)1a;color:@c;display:grid;place-items:center;font-size:10.5px;font-weight:800;font-family:var(--font-display);">@(d.Ext ?? "?")</div>
+                            <div><div style="font-weight:700;">@d.Name</div><div class="muted-3" style="font-size:11.5px;font-weight:600;">@(d.Folder ?? "—")</div></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+                            <span class="badge b-gray">Projeto</span>
+                            <span class="muted-3" style="font-size:11.5px;font-weight:600;">@(d.Project?.Code ?? "—") · @(d.Project?.Name ?? "—")</span>
+                        </div>
+                    </td>
+                    <td><span class="num badge b-gray">@(d.Version ?? "v1")</span></td>
+                    <td class="num muted" style="font-weight:600;">@Size(d.SizeBytes)</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            @Components.Avatar(d.Uploader?.Name, 26)
+                            <div><div style="font-weight:600;font-size:13px;">@(d.Uploader?.Name.Split(' ').FirstOrDefault() ?? "—")</div><div class="muted-3" style="font-size:11.5px;font-weight:600;">@Ui.Date(d.UploadedAt)</div></div>
+                        </div>
+                    </td>
+                    <td style="text-align:right;">
+                        <div style="display:flex;gap:4px;justify-content:flex-end;">
+                            <a class="icon-btn" style="width:32px;height:32px;" title="Descarregar" href="@Url.Action("Download", new { id = d.Id })">@Icons.Render("download", 16)</a>
+                            <form asp-action="NewVersion" asp-route-id="@d.Id" method="post" style="display:inline;">
+                                <button class="icon-btn" type="submit" style="width:32px;height:32px;" title="Nova versão">@Icons.Render("plus", 16)</button>
+                            </form>
+                            <form asp-action="Delete" asp-route-id="@d.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar @d.Name?');">
+                                <button class="icon-btn" type="submit" style="width:32px;height:32px;color:var(--danger);" title="Eliminar">@Icons.Render("x", 15)</button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
             }
-            @if (Model.Count == 0) { <tr><td colspan="7" class="muted" style="padding:24px;">Sem documentos.</td></tr> }
             </tbody>
         </table>
+        @if (shown.Count == 0)
+        {
+            <div class="empty" style="padding:40px 0;">@Icons.Render("fileText", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem ficheiros nesta pasta</div></div>
+        }
     </div>
 </div>
+
+<script>
+    // Drag & drop upload real
+    var dz = document.getElementById('dropzone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; dz.style.background = 'var(--accent-soft)'; document.getElementById('dzTitle').textContent = 'Larga para carregar'; });
+    dz.addEventListener('dragleave', () => { dz.style.borderColor = 'var(--border-2)'; dz.style.background = 'var(--surface-2)'; document.getElementById('dzTitle').textContent = 'Arrasta ficheiros para aqui ou carrega do teu computador'; });
+    dz.addEventListener('drop', e => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) {
+            document.getElementById('upFile').files = e.dataTransfer.files;
+            document.getElementById('upForm').submit();
+        }
+    });
+</script>

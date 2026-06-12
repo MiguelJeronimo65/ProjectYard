@@ -1,32 +1,123 @@
 @model List<Client>
-@{ ViewData["Title"] = "Clientes"; }
+@{
+    ViewData["Title"] = "Clientes";
+    var stages = ProjectYard.Web.Controllers.ClientsController.Stages;
+    var projByClient = (Dictionary<long, int>)ViewBag.ProjectsByClient;
+    var billedByClient = (Dictionary<long, decimal>)ViewBag.BilledByClient;
+    var feesByClient = (Dictionary<long, decimal>)ViewBag.FeesByClient;
+    string viewMode = ViewBag.View;
+    int leads = Model.Count(c => c.Status == "Lead");
+    decimal pipelineValue = Model.Sum(c => feesByClient.GetValueOrDefault(c.Id));
+}
 <div class="content">
     <div class="page-head">
-        <div><h1>Clientes</h1><p>@Model.Count clientes no teu workspace.</p></div>
-        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo cliente</a></div>
+        <div><h1>Clientes</h1><p>Funil comercial e fases de contacto · @Model.Count clientes · @leads lead@(leads == 1 ? "" : "s")</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-ghost" type="button">@Icons.Render("download", 16) Exportar</button>
+            <a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 16) Novo cliente</a>
+        </div>
     </div>
-    <div class="card">
-        <table class="tbl">
-            <thead><tr><th>Empresa</th><th>NIF</th><th>Contacto</th><th>Email</th><th>Cidade</th><th>Estado</th><th style="text-align:right;">Ações</th></tr></thead>
-            <tbody>
-            @foreach (var c in Model)
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <div class="seg">
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "pipeline" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index")">@Icons.Render("grid", 15) Pipeline</a>
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "lista" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index", new { view = "lista" })">@Icons.Render("menu", 15) Lista</a>
+        </div>
+        <span class="muted-3" style="font-size:13px;font-weight:600;">Valor em pipeline: <b class="num" style="color:var(--text);">@Ui.Eur(pipelineValue)</b></span>
+    </div>
+
+    @if (viewMode == "pipeline")
+    {
+        <div style="display:grid;grid-template-columns:repeat(@stages.Length, minmax(210px, 1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:8px;">
+            @foreach (var s in stages)
             {
-                <tr>
-                    <td style="font-weight:700;">@c.Company</td>
-                    <td>@(c.Nif ?? "—")</td>
-                    <td>@(c.Contact ?? "—")</td>
-                    <td class="muted">@(c.Email ?? "—")</td>
-                    <td>@(c.City ?? "—")</td>
-                    <td><span class="badge @Ui.ClientStatus(c.Status)">@c.Status</span></td>
-                    <td style="text-align:right;white-space:nowrap;">
-                        <a class="btn btn-ghost btn-sm" asp-action="Edit" asp-route-id="@c.Id">Editar</a>
-                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este cliente?');">
-                            <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
-                        </form>
-                    </td>
-                </tr>
+                var cards = Model.Where(c => c.Stage == s.Id).ToList();
+                <div class="crm-col" data-stage="@s.Id"
+                     style="background:var(--surface-2);border-radius:var(--r);border:1px solid var(--border);padding:11px;transition:background .12s,border-color .12s;">
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 6px 12px;">
+                        <span style="width:9px;height:9px;border-radius:99px;background:@s.Color;"></span>
+                        <span style="font-weight:700;font-size:13px;">@s.Label</span>
+                        <span class="num" style="margin-left:auto;font-weight:700;font-size:12px;color:var(--text-3);background:var(--surface);padding:1px 7px;border-radius:99px;">@cards.Count</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:9px;min-height:8px;">
+                        @foreach (var c in cards)
+                        {
+                            var fees = feesByClient.GetValueOrDefault(c.Id);
+                            <div class="card card-pad crm-card" draggable="true" data-id="@c.Id" title="@c.Company — arraste para mudar de fase"
+                                 style="padding:13px;text-align:left;cursor:grab;display:flex;flex-direction:column;gap:9px;"
+                                 onclick="location.href='@Url.Action("Edit", new { id = c.Id })'">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    @Components.Avatar(c.Company, 34, sq: true)
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@c.Company</div>
+                                        <div class="muted-3" style="font-size:11.5px;font-weight:600;">@(c.City ?? "—")</div>
+                                    </div>
+                                </div>
+                                @if (fees > 0) { <div class="num" style="font-weight:700;font-size:15px;">@Ui.Eur(fees)</div> }
+                                <div class="muted-3" style="font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:5px;">@Icons.Render("user", 12) @(c.Contact ?? "—")</div>
+                            </div>
+                        }
+                    </div>
+                </div>
             }
-            </tbody>
-        </table>
-    </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <table class="tbl">
+                <thead><tr><th>Cliente</th><th>Contacto</th><th>Fase</th><th>Projetos</th><th>Faturado</th><th>Estado</th><th style="text-align:right;">Ações</th></tr></thead>
+                <tbody>
+                @foreach (var c in Model)
+                {
+                    var st = stages.FirstOrDefault(s => s.Id == c.Stage);
+                    <tr class="row-click" onclick="location.href='@Url.Action("Edit", new { id = c.Id })'">
+                        <td><div style="display:flex;align-items:center;gap:12px;">@Components.Avatar(c.Company, 36, sq: true)<div><div style="font-weight:700;">@c.Company</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(c.City ?? "—") · NIF @(c.Nif ?? "—")</div></div></div></td>
+                        <td><div style="font-weight:600;font-size:13.5px;">@(c.Contact ?? "—")</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(c.ContactRole ?? "—")</div></td>
+                        <td><span style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:@(st.Color ?? "var(--text-3)");"><span style="width:8px;height:8px;border-radius:99px;background:@(st.Color ?? "var(--text-3)");"></span>@(st.Label ?? "—")</span></td>
+                        <td class="num" style="font-weight:700;">@projByClient.GetValueOrDefault(c.Id)</td>
+                        <td class="num" style="font-weight:700;">@Ui.Eur(billedByClient.GetValueOrDefault(c.Id))</td>
+                        <td><span class="badge @Ui.ClientStatus(c.Status)"><span class="bdot"></span>@c.Status</span></td>
+                        <td style="text-align:right;white-space:nowrap;" onclick="event.stopPropagation();">
+                            <a class="btn btn-ghost btn-sm" asp-action="Edit" asp-route-id="@c.Id">Editar</a>
+                            <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este cliente?');">
+                                <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
+
+<form id="afForm">@Html.AntiForgeryToken()</form>
+
+<script>
+    // Drag & drop do pipeline — persiste a fase via POST /Clients/MoveStage
+    var dragged = null;
+    document.querySelectorAll('.crm-card').forEach(c => {
+        c.addEventListener('dragstart', e => { dragged = c; c.style.opacity = '.4'; e.dataTransfer.effectAllowed = 'move'; });
+        c.addEventListener('dragend', () => { if (dragged) dragged.style.opacity = '1'; dragged = null; resetCols(); });
+    });
+    function resetCols() {
+        document.querySelectorAll('.crm-col').forEach(col => { col.style.background = 'var(--surface-2)'; col.style.borderColor = 'var(--border)'; });
+    }
+    document.querySelectorAll('.crm-col').forEach(col => {
+        col.addEventListener('dragover', e => { e.preventDefault(); col.style.background = 'var(--accent-soft)'; col.style.borderColor = 'var(--accent)'; });
+        col.addEventListener('dragleave', () => { col.style.background = 'var(--surface-2)'; col.style.borderColor = 'var(--border)'; });
+        col.addEventListener('drop', async e => {
+            e.preventDefault();
+            resetCols();
+            if (!dragged) return;
+            var token = document.querySelector('#afForm input[name="__RequestVerificationToken"]').value;
+            var res = await fetch('@Url.Action("MoveStage")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ id: dragged.dataset.id, stage: col.dataset.stage, __RequestVerificationToken: token }),
+            });
+            if (res.ok) location.reload();
+        });
+    });
+</script>

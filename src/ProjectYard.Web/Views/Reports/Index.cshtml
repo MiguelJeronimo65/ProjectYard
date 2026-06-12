@@ -1,49 +1,135 @@
 @model ReportsViewModel
-@{ ViewData["Title"] = "Relatórios"; }
+@{
+    ViewData["Title"] = "Relatórios";
+    string FmtH(decimal n) => n.ToString("#,##0.#", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    var withHours = Model.Projects.Where(p => p.Horas > 0).ToList();
+    var maxHoras = withHours.Count > 0 ? withHours.Max(p => p.Horas) : 1;
+}
 <div class="content">
-    <div class="page-head"><div><h1>Relatórios</h1><p>Resumo operacional e financeiro do workspace.</p></div></div>
-
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:24px;">
-        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Honorários (carteira)</div><div class="display num" style="font-size:24px;">@Ui.Eur(Model.Honorarios)</div></div>
-        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Recebido</div><div class="display num" style="font-size:24px;color:var(--success);">@Ui.Eur(Model.Pago)</div></div>
-        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Pendente</div><div class="display num" style="font-size:24px;color:var(--warning);">@Ui.Eur(Model.Pendente)</div></div>
-        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Vencido</div><div class="display num" style="font-size:24px;color:var(--danger);">@Ui.Eur(Model.Vencido)</div></div>
-        <div class="card card-pad stat"><div class="muted-3" style="font-weight:700;font-size:12px;text-transform:uppercase;">Horas registadas</div><div class="display num" style="font-size:24px;">@Ui.Num(Model.HorasTotais) h</div></div>
+    <div class="page-head">
+        <div><h1>Relatórios</h1><p>Produtividade, custo de produção e faturação por projeto e colaborador</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-ghost" type="button">@Icons.Render("download", 16) Exportar</button>
+        </div>
     </div>
 
-    <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;">
-        <div class="card">
-            <div class="card-pad card-h"><h3>Horas por projeto</h3></div>
-            <table class="tbl">
-                <thead><tr><th>Projeto</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Custo</th></tr></thead>
-                <tbody>
-                @foreach (var r in Model.HoursByProject)
+    @* KPIs *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("clock", 23)</div></div>
+            <div><div class="stat__val">@FmtH(Model.HorasReais)h</div><div class="stat__label">Horas reais</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Registadas em toda a carteira</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("card", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(Model.CustoProducao)</div><div class="stat__label">Custo de produção</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Horas × custo/hora por colaborador</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--info-soft);color:var(--info);">@Icons.Render("euro", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(Model.Faturado)</div><div class="stat__label">Faturado (carteira)</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Ui.Kk(Model.Recebido) recebido · @(Model.Faturado > 0 ? (int)Math.Round(Model.Recebido / Model.Faturado * 100) : 0)%</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--success-soft);color:var(--success);">@Icons.Render("trend", 23)</div></div>
+            <div><div class="stat__val">@Model.MargemPct%</div><div class="stat__label">Margem bruta prevista</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Honorários − custo de produção</div>
+        </div>
+    </div>
+
+    @* Insight row *@
+    <div class="grid" style="grid-template-columns:1.7fr 1fr;align-items:start;margin-bottom:22px;">
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Horas por projeto</h3><span class="sub">Esforço real registado · custo de produção</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:15px;">
+                @foreach (var p in withHours.OrderByDescending(x => x.Horas))
                 {
-                    <tr><td><span class="badge b-gray">@r.Code</span></td><td class="num" style="text-align:right;font-weight:700;">@Ui.Num(r.Hours)</td><td class="num" style="text-align:right;">@Ui.Eur(r.Cost)</td></tr>
+                    var w = (double)(p.Horas / maxHoras) * 100;
+                    <div style="display:flex;align-items:center;gap:13px;">
+                        <div style="width:168px;flex-shrink:0;display:flex;align-items:center;gap:9px;min-width:0;">
+                            <span style="width:4px;height:26px;border-radius:4px;background:@Components.Color(p.Code);flex-shrink:0;"></span>
+                            <div style="min-width:0;">
+                                <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@p.Name</div>
+                                <div class="muted-3 num" style="font-size:11px;font-weight:600;">@p.Code</div>
+                            </div>
+                        </div>
+                        <div style="flex:1;height:22px;background:var(--surface-3);border-radius:7px;overflow:hidden;">
+                            <div style="width:@w.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%;height:100%;background:@Components.Color(p.Code);border-radius:7px;"></div>
+                        </div>
+                        <span class="num" style="font-weight:700;font-size:14px;min-width:84px;text-align:right;">@FmtH(p.Horas)h · @Ui.Kk(p.Custo)</span>
+                    </div>
                 }
-                @if (Model.HoursByProject.Count == 0) { <tr><td colspan="3" class="muted" style="padding:20px;">Sem registos.</td></tr> }
+                @if (withHours.Count == 0) { <div class="muted" style="font-size:13px;">Sem horas registadas.</div> }
+            </div>
+        </div>
+
+        @* Saúde da carteira *@
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Saúde da carteira</h3></div></div>
+            <div style="text-align:center;padding:6px 0 16px;">
+                <div class="num" style="font-size:44px;font-weight:700;letter-spacing:-0.03em;color:var(--success);font-family:var(--font-display);">@Model.MargemPct%</div>
+                <div class="muted-3" style="font-size:12.5px;font-weight:600;">Margem bruta prevista (s/ custos indiretos)</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;"><span class="muted" style="font-size:13px;font-weight:600;">Honorários em carteira</span><span class="num" style="font-weight:700;font-size:14px;">@Ui.Kk(Model.Honorarios)</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;"><span class="muted" style="font-size:13px;font-weight:600;">Faturado</span><span style="display:flex;align-items:baseline;gap:7px;"><span class="muted-3" style="font-size:11.5px;font-weight:700;">@(Model.Honorarios > 0 ? (int)Math.Round(Model.Faturado / Model.Honorarios * 100) : 0)%</span><span class="num" style="font-weight:700;font-size:14px;">@Ui.Kk(Model.Faturado)</span></span></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;"><span class="muted" style="font-size:13px;font-weight:600;">Recebido</span><span style="display:flex;align-items:baseline;gap:7px;"><span class="muted-3" style="font-size:11.5px;font-weight:700;">@(Model.Honorarios > 0 ? (int)Math.Round(Model.Recebido / Model.Honorarios * 100) : 0)%</span><span class="num" style="font-weight:700;font-size:14px;">@Ui.Kk(Model.Recebido)</span></span></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;"><span class="muted" style="font-size:13px;font-weight:600;">Custo de produção</span><span class="num" style="font-weight:700;font-size:14px;">@Ui.Kk(Model.CustoProducao)</span></div>
+                <div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--border);">
+                    <span style="font-weight:700;font-size:13.5px;">Margem bruta prevista</span>
+                    <span class="num" style="font-weight:700;font-size:15px;color:var(--success);">@Ui.Kk(Model.MargemPrev)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Tabs *@
+    <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;">
+        <a href="@Url.Action("Index")" style="padding:12px 16px;font-weight:700;font-size:14px;color:@(Model.Tab == "projeto" ? "var(--primary-700)" : "var(--text-2)");border-bottom:2px solid @(Model.Tab == "projeto" ? "var(--accent)" : "transparent");margin-bottom:-1px;">Por projeto</a>
+        <a href="@Url.Action("Index", new { tab = "colaborador" })" style="padding:12px 16px;font-weight:700;font-size:14px;color:@(Model.Tab == "colaborador" ? "var(--primary-700)" : "var(--text-2)");border-bottom:2px solid @(Model.Tab == "colaborador" ? "var(--accent)" : "transparent");margin-bottom:-1px;">Por colaborador</a>
+    </div>
+
+    @if (Model.Tab == "projeto")
+    {
+        <div class="card">
+            <table class="tbl">
+                <thead><tr><th>Projeto</th><th>Estado</th><th style="text-align:right;">Horas reais</th><th style="text-align:right;">Custo produção</th><th style="text-align:right;">Honorários</th><th style="text-align:right;">Faturado</th><th style="text-align:right;">Recebido</th></tr></thead>
+                <tbody>
+                @foreach (var p in Model.Projects)
+                {
+                    <tr>
+                        <td><div style="font-weight:700;">@p.Name</div><div class="muted-3 num" style="font-size:12px;font-weight:600;">@p.Code</div></td>
+                        <td><span class="badge @Ui.ProjectStatus(p.Status)">@p.Status</span></td>
+                        <td class="num" style="text-align:right;font-weight:700;">@(p.Horas > 0 ? FmtH(p.Horas) + "h" : "—")</td>
+                        <td class="num" style="text-align:right;">@(p.Custo > 0 ? Ui.Eur(p.Custo) : "—")</td>
+                        <td class="num" style="text-align:right;font-weight:700;">@Ui.Eur(p.Honorarios)</td>
+                        <td class="num" style="text-align:right;">@Ui.Eur(p.Faturado)</td>
+                        <td class="num" style="text-align:right;color:var(--success);font-weight:700;">@Ui.Eur(p.Recebido)</td>
+                    </tr>
+                }
                 </tbody>
             </table>
         </div>
+    }
+    else
+    {
         <div class="card">
-            <div class="card-pad card-h"><h3>Projetos por estado</h3></div>
             <table class="tbl">
+                <thead><tr><th>Colaborador</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Faturáveis</th><th style="text-align:right;">% Faturável</th><th style="text-align:right;">Custo</th></tr></thead>
                 <tbody>
-                @foreach (var kv in Model.ProjectsByStatus)
+                @foreach (var c in Model.People)
                 {
-                    <tr><td><span class="badge @Ui.ProjectStatus(kv.Key)">@kv.Key</span></td><td class="num" style="text-align:right;font-weight:700;">@kv.Value</td></tr>
+                    <tr>
+                        <td><div style="display:flex;align-items:center;gap:10px;">@Components.Avatar(c.Name, 32)<div><div style="font-weight:700;">@c.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@c.Funcao</div></div></div></td>
+                        <td class="num" style="text-align:right;font-weight:700;">@FmtH(c.Horas)h</td>
+                        <td class="num" style="text-align:right;">@FmtH(c.Faturaveis)h</td>
+                        <td class="num" style="text-align:right;font-weight:700;color:@(c.Horas > 0 && c.Faturaveis / c.Horas >= 0.85m ? "var(--success)" : "var(--warning)");">@(c.Horas > 0 ? (int)Math.Round(c.Faturaveis / c.Horas * 100) : 0)%</td>
+                        <td class="num" style="text-align:right;">@Ui.Eur(c.Custo)</td>
+                    </tr>
                 }
-                </tbody>
-            </table>
-            <div class="card-pad card-h" style="border-top:1px solid var(--border);"><h3>Entregáveis por estado</h3></div>
-            <table class="tbl">
-                <tbody>
-                @foreach (var kv in Model.DeliverablesByStatus)
-                {
-                    <tr><td><span class="badge @Ui.DeliverableStatus(kv.Key)">@kv.Key</span></td><td class="num" style="text-align:right;font-weight:700;">@kv.Value</td></tr>
-                }
+                @if (Model.People.Count == 0) { <tr><td colspan="5" class="muted" style="padding:24px;">Sem registos de horas.</td></tr> }
                 </tbody>
             </table>
         </div>
-    </div>
+    }
 </div>

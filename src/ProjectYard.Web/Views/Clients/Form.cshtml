@@ -18,6 +18,7 @@
             <div class="fld"><label asp-for="Email">Email</label><div class="fld__box"><input asp-for="Email" type="email" /></div></div>
             <div class="fld"><label asp-for="Phone">Telefone</label><div class="fld__box"><input asp-for="Phone" /></div></div>
             <div class="fld"><label asp-for="Status">Estado</label><div class="fld__box"><select asp-for="Status" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;">@foreach (var s in statuses){<option value="@s" selected="@(Model.Status == s)">@s</option>}</select></div></div>
+            <div class="fld"><label asp-for="Stage">Fase do funil</label><div class="fld__box"><select asp-for="Stage" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;">@foreach (var st in ProjectYard.Web.Controllers.ClientsController.Stages){<option value="@st.Id" selected="@(Model.Stage == st.Id)">@st.Label</option>}</select></div></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
             <button class="btn btn-primary" type="submit">Guardar</button>
