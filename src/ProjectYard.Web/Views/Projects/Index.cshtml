@@ -1,29 +1,148 @@
-@model List<Project>
-@{ ViewData["Title"] = "Projetos"; }
+@model ProjectsListViewModel
+@{
+    ViewData["Title"] = "Projetos";
+    var filters = new[] { "Todos", "Em curso", "Em risco", "Proposta", "Concluído" };
+    int extraN = (string.IsNullOrEmpty(Model.FHealth) ? 0 : 1) + (Model.FPm is null ? 0 : 1);
+    string QUrl(string? status = null, string? health = null, long? pm = null, string? view = null)
+        => Url.Action("Index", new
+        {
+            status = status ?? (Model.Filter == "Todos" ? null : Model.Filter),
+            health = health ?? Model.FHealth,
+            pm = pm ?? Model.FPm,
+            view = (view ?? Model.View) == "grid" ? null : (view ?? Model.View),
+        })!;
+    string HL(string h) => h == "green" ? "Saudável" : h == "amber" ? "Atenção" : "Crítico";
+    string HC(string h) => h == "green" ? "var(--success)" : h == "amber" ? "#b9791a" : "var(--danger)";
+}
 <div class="content">
     <div class="page-head">
-        <div><h1>Projetos</h1><p>@Model.Count projetos no teu workspace.</p></div>
-        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo projeto</a></div>
+        <div>
+            <h1>Projetos</h1>
+            <p>@Model.Total projetos · @Model.EmCurso em curso · @Model.EmRisco em risco</p>
+        </div>
+        <div class="page-head__actions">
+            <a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Novo projeto</a>
+        </div>
     </div>
-    <div class="card">
-        <table class="tbl">
-            <thead>
-                <tr><th>Código</th><th>Projeto</th><th>Cliente</th><th>Gestor</th><th>Estado</th><th>Fase atual</th><th style="text-align:right;">Honorários</th></tr>
-            </thead>
-            <tbody>
-            @foreach (var p in Model)
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;">
+            @foreach (var f in filters)
             {
-                <tr class="row-click" onclick="location.href='@Url.Action("Details", new { id = p.Id })'">
-                    <td><span class="badge b-gray">@p.Code</span></td>
-                    <td style="font-weight:700;">@p.Name</td>
-                    <td>@(p.Client?.Company ?? "—")</td>
-                    <td>@(p.Manager?.Name ?? "—")</td>
-                    <td><span class="badge @Ui.ProjectStatus(p.Status)">@p.Status</span></td>
-                    <td>@(p.PhaseCurrent ?? "—")</td>
-                    <td class="num" style="text-align:right;font-weight:700;">@Ui.Eur(p.Fees)</td>
-                </tr>
+                <a class="chip @(Model.Filter == f ? "active" : "")" href="@QUrl(status: f == "Todos" ? "Todos" : f)">@f</a>
             }
-            </tbody>
-        </table>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:10px;">
+            <details style="position:relative;">
+                <summary class="chip @(extraN > 0 ? "active" : "")" style="list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">@Icons.Render("filter", 15) Filtros@(extraN > 0 ? " · " + extraN : "")</summary>
+                <div class="flt-pop" style="left:auto;right:0;min-width:208px;">
+                    <div class="ws-menu__lbl">Saúde</div>
+                    <a class="flt-opt @(string.IsNullOrEmpty(Model.FHealth) ? "on" : "")" href="@Url.Action("Index", new { status = Model.Filter == "Todos" ? null : Model.Filter, pm = Model.FPm, view = Model.View == "grid" ? null : Model.View })">Todas</a>
+                    @foreach (var (v, l) in new[] { ("green", "Saudável"), ("amber", "Atenção"), ("red", "Crítico") })
+                    {
+                        <a class="flt-opt @(Model.FHealth == v ? "on" : "")" href="@QUrl(health: v)"><span class="health-dot h-@v" style="margin-right:8px;vertical-align:middle;"></span>@l</a>
+                    }
+                    <div class="divider" style="margin:6px 0;"></div>
+                    <div class="ws-menu__lbl">Gestor</div>
+                    <a class="flt-opt @(Model.FPm is null ? "on" : "")" href="@Url.Action("Index", new { status = Model.Filter == "Todos" ? null : Model.Filter, health = Model.FHealth, view = Model.View == "grid" ? null : Model.View })">Todos</a>
+                    @foreach (var g in Model.Gestores)
+                    {
+                        <a class="flt-opt @(Model.FPm == g.Id ? "on" : "")" href="@QUrl(pm: g.Id)">@g.Name</a>
+                    }
+                    @if (extraN > 0)
+                    {
+                        <div class="divider" style="margin:6px 0;"></div>
+                        <a class="flt-opt" style="color:var(--danger);" href="@Url.Action("Index", new { status = Model.Filter == "Todos" ? null : Model.Filter, view = Model.View == "grid" ? null : Model.View })">Limpar filtros</a>
+                    }
+                </div>
+            </details>
+            <div class="seg">
+                <a class="@(Model.View == "grid" ? "active" : "")" style="display:inline-flex;align-items:center;padding:7px 14px;border-radius:7px;@(Model.View == "grid" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@QUrl(view: "grid")">@Icons.Render("grid", 15)</a>
+                <a class="@(Model.View == "list" ? "active" : "")" style="display:inline-flex;align-items:center;padding:7px 14px;border-radius:7px;@(Model.View == "list" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@QUrl(view: "list")">@Icons.Render("menu", 15)</a>
+            </div>
+        </div>
     </div>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="card"><div class="empty" style="padding:56px 20px;">@Icons.Render("building", 32)<div style="margin-top:10px;font-weight:700;font-size:15px;color:var(--text-2);">Sem projetos</div><div style="margin-top:4px;">Nenhum projeto corresponde aos filtros atuais.</div><a class="btn btn-soft btn-sm" style="margin-top:14px;" asp-action="Index">Limpar filtros</a></div></div>
+    }
+    else if (Model.View == "grid")
+    {
+        <div class="grid cols-3">
+            @foreach (var it in Model.Items)
+            {
+                var p = it.Project;
+                <div class="card card-pad rise" style="cursor:pointer;display:flex;flex-direction:column;gap:16px;" onclick="location.href='@Url.Action("Details", new { id = p.Id })'">
+                    <div style="display:flex;align-items:flex-start;gap:12px;">
+                        <div style="width:46px;height:46px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex-shrink:0;">@Icons.Render("building", 23)</div>
+                        <div style="flex:1;min-width:0;">
+                            <span class="badge @Ui.ProjectStatus(p.Status)">@p.Status</span>
+                            <div style="font-weight:700;font-size:15.5px;margin-top:8px;line-height:1.3;">@p.Name</div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;">@p.Code · @(p.Client?.Company ?? "—")</div>
+                        </div>
+                        <a class="icon-btn" style="width:34px;height:34px;border:none;" href="@Url.Action("Edit", new { id = p.Id })" onclick="event.stopPropagation();" title="Editar">@Icons.Render("settings", 16)</a>
+                    </div>
+
+                    <div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:7px;font-size:13px;">
+                            <span class="muted" style="font-weight:600;">Progresso · @(p.PhaseCurrent ?? "—")</span>
+                            <span class="num" style="font-weight:700;">@it.Progress%</span>
+                        </div>
+                        @Components.Progress(it.Progress)
+                    </div>
+
+                    <div style="display:flex;gap:8px;">
+                        <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:9px 11px;">
+                            <div style="display:flex;align-items:center;gap:6px;color:var(--text-3);">@Icons.Render("checkSquare", 14)<span class="num" style="font-weight:700;font-size:16px;color:var(--text);">@it.OpenTasks</span></div>
+                            <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:1px;">@if (it.Overdue > 0) { <span style="color:var(--danger);">@it.Overdue atraso</span> } else { <text>tarefas</text> }</div>
+                        </div>
+                        <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:9px 11px;">
+                            <div style="display:flex;align-items:center;gap:6px;color:var(--text-3);">@Icons.Render("layers", 14)<span class="num" style="font-weight:700;font-size:16px;color:var(--text);">@it.Deliverables</span></div>
+                            <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:1px;">entregáveis</div>
+                        </div>
+                        <div style="flex:1;background:var(--surface-2);border-radius:var(--r-sm);padding:9px 11px;">
+                            <div style="display:flex;align-items:center;gap:6px;color:var(--text-3);">@Icons.Render("shield", 14)<span class="num" style="font-weight:700;font-size:16px;color:var(--text);">@it.Approvals</span></div>
+                            <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:1px;">aprovações</div>
+                        </div>
+                    </div>
+
+                    <div class="divider" style="margin:2px 0;"></div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;color:@HC(p.Health);">
+                                <span class="health-dot h-@p.Health"></span>@HL(p.Health)
+                            </span>
+                            <span class="muted-3" style="font-size:12.5px;font-weight:600;">· @Ui.Date(p.EndPlanned)</span>
+                        </div>
+                        @Components.AvStack(it.Team, 3, 28)
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <table class="tbl">
+                <thead><tr><th>Projeto</th><th>Cliente</th><th>Estado</th><th>Progresso</th><th>Contrato</th><th>Prazo</th><th>Equipa</th></tr></thead>
+                <tbody>
+                @foreach (var it in Model.Items)
+                {
+                    var p = it.Project;
+                    <tr class="row-click" onclick="location.href='@Url.Action("Details", new { id = p.Id })'">
+                        <td><div style="font-weight:700;">@p.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@p.Code</div></td>
+                        <td class="muted">@(p.Client?.Company ?? "—")</td>
+                        <td><span class="badge @Ui.ProjectStatus(p.Status)"><span class="bdot"></span>@p.Status</span></td>
+                        <td style="width:140px;"><div style="display:flex;align-items:center;gap:8px;">@Components.Progress(it.Progress, thin: true)<span class="num" style="font-size:12.5px;font-weight:700;">@it.Progress%</span></div></td>
+                        <td class="num" style="font-weight:700;">@Ui.Eur(p.Fees)</td>
+                        <td class="muted" style="font-weight:600;">@Ui.Date(p.EndPlanned)</td>
+                        <td>@Components.AvStack(it.Team, 3, 28)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>

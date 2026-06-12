@@ -91,6 +91,25 @@ public static class Components
         return new HtmlString(sb.ToString());
     }
 
+    /// <summary>Anel de progresso (réplica do Ring do protótipo).</summary>
+    public static IHtmlContent Ring(int value, int size = 84, int stroke = 9, string? label = null)
+    {
+        double r = (size - stroke) / 2.0;
+        double c = 2 * Math.PI * r;
+        var id = "ringg" + Math.Abs((value * 31 + size) % 9973);
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"<div style=\"position:relative;width:{size}px;height:{size}px;flex-shrink:0;\">");
+        sb.Append($"<svg width=\"{size}\" height=\"{size}\" style=\"transform:rotate(-90deg);\">");
+        sb.Append($"<circle cx=\"{size / 2}\" cy=\"{size / 2}\" r=\"{Fmt(r)}\" fill=\"none\" stroke=\"var(--surface-3)\" stroke-width=\"{stroke}\"></circle>");
+        sb.Append($"<circle cx=\"{size / 2}\" cy=\"{size / 2}\" r=\"{Fmt(r)}\" fill=\"none\" stroke=\"url(#{id})\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-dasharray=\"{Fmt(c)}\" stroke-dashoffset=\"{Fmt(c - c * Math.Clamp(value, 0, 100) / 100)}\"></circle>");
+        sb.Append($"<defs><linearGradient id=\"{id}\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"var(--accent)\"></stop><stop offset=\"1\" stop-color=\"var(--accent-700)\"></stop></linearGradient></defs>");
+        sb.Append("</svg>");
+        sb.Append($"<div style=\"position:absolute;inset:0;display:grid;place-items:center;text-align:center;\"><div><div class=\"num\" style=\"font-size:{Fmt(size * 0.26)}px;font-weight:700;line-height:1;\">{value}%</div>");
+        if (label != null) sb.Append($"<div class=\"muted-3\" style=\"font-size:11px;font-weight:700;margin-top:2px;\">{Esc(label)}</div>");
+        sb.Append("</div></div></div>");
+        return new HtmlString(sb.ToString());
+    }
+
     private static string Fmt(double n) => n.ToString("0.##", CultureInfo.InvariantCulture);
     private static string Esc(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
 }

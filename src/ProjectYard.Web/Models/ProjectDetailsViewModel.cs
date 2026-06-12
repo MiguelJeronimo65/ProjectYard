@@ -10,4 +10,7 @@ public class ProjectDetailsViewModel
     public List<Deliverable> Deliverables { get; set; } = new();
     public List<PaymentMilestone> Milestones { get; set; } = new();
     public List<Risk> Risks { get; set; } = new();
+    public List<Invoice> Invoices { get; set; } = new();
+    public List<TeamMemberVm> Team { get; set; } = new();
+    public int Progress { get; set; }
 }

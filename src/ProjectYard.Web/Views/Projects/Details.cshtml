@@ -1,102 +1,365 @@
 @model ProjectDetailsViewModel
 @{
-    ViewData["Title"] = Model.Project.Code;
     var p = Model.Project;
+    ViewData["Title"] = p.Code;
+    var tabs = new[] { "Visão geral", "Fases", "Tarefas", "Entregáveis", "Financeiro", "Equipa" };
+    var concluded = Model.Phases.Count(ph => (ph.CompletionPct ?? 0) >= 100);
+    string HL(string h) => h == "green" ? "Saudável" : h == "amber" ? "Atenção" : "Crítico";
+    string HC(string h) => h == "green" ? "var(--success)" : h == "amber" ? "#b9791a" : "var(--danger)";
+    var budget = p.Budget ?? 0m;
+    var spent = p.Spent ?? 0m;
+    int spentPct = budget > 0 ? (int)Math.Round(spent / budget * 100) : 0;
+    var faturado = Model.Invoices.Sum(i => i.Amount);
+    var recebido = Model.Invoices.Where(i => i.Status == "Pago").Sum(i => i.Amount);
+    var margem = (p.Fees ?? 0m) - spent;
+    int margemPct = (p.Fees ?? 0m) > 0 ? (int)Math.Round(margem / p.Fees!.Value * 100) : 0;
+    var openRisks = Model.Risks.Where(r => r.Status == "Aberto").ToList();
+    (string sev, string tag) Sev(Risk r) { var s = r.Probability * r.Impact; return s >= 15 ? ("Alto", "b-red") : s >= 8 ? ("Médio", "b-amber") : ("Baixo", "b-gray"); }
+    string PrioTag(string pr) => pr == "Alta" ? "b-red" : pr == "Média" ? "b-amber" : "b-gray";
+    var cols = new[] { ("todo", "Por fazer", "var(--text-3)"), ("doing", "Em curso", "var(--info)"), ("review", "Em revisão", "var(--warning)"), ("done", "Concluído", "var(--success)") };
 }
 <div class="content">
+    <div class="breadcrumb"><a href="@Url.Action("Index")">Projetos</a>@Icons.Render("chevR", 13)<a>@p.Code</a></div>
     <div class="page-head">
         <div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-                <a class="badge b-gray" href="@Url.Action("Index")">@Icons.Render("chevD", 12) Projetos</a>
-                <span class="badge b-gray">@p.Code</span>
-                <span class="badge @Ui.ProjectStatus(p.Status)">@p.Status</span>
-                <span title="Saúde" style="width:10px;height:10px;border-radius:99px;background:@Ui.Health(p.Health);"></span>
-            </div>
             <h1>@p.Name</h1>
-            <p>@(p.Client?.Company ?? "—") · @(p.Type ?? "—") · Gestor: @(p.Manager?.Name ?? "—")</p>
+            <p>@(p.Client?.Company ?? "—") · @(p.Type ?? "—")</p>
         </div>
-        <div class="page-head__actions"><a class="btn btn-ghost" asp-action="Edit" asp-route-id="@p.Id">@Icons.Render("settings", 16) Editar</a></div>
+        <div class="page-head__actions">
+            <a class="btn btn-ghost" href="@Url.Action("Index")">@Icons.Render("chevL", 16) Voltar</a>
+            <a class="btn btn-ghost" href="@Url.Action("Edit", new { id = p.Id })">@Icons.Render("settings", 16) Editar</a>
+            <a class="btn btn-primary" asp-controller="Tasks" asp-action="Index">@Icons.Render("plus", 16) Adicionar tarefa</a>
+        </div>
     </div>
 
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:22px;">
-        <div class="card card-pad"><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Honorários</div><div class="num display" style="font-size:22px;">@Ui.Eur(p.Fees)</div></div>
-        <div class="card card-pad"><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Orçamento</div><div class="num display" style="font-size:22px;">@Ui.Eur(p.Budget)</div></div>
-        <div class="card card-pad"><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Gasto</div><div class="num display" style="font-size:22px;">@Ui.Eur(p.Spent)</div></div>
-        <div class="card card-pad"><div class="muted-3" style="font-weight:700;font-size:11px;text-transform:uppercase;">Início → Fim</div><div style="font-weight:700;font-size:14px;margin-top:6px;">@Ui.Date(p.StartPlanned) → @Ui.Date(p.EndPlanned)</div></div>
+    @* ===== Summary band ===== *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card card-pad" style="display:flex;align-items:center;gap:16px;">
+            @Components.Ring(Model.Progress, 84, 9)
+            <div>
+                <div class="muted-3" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Fase atual</div>
+                <div style="font-weight:700;font-size:15px;margin-top:3px;">@(p.PhaseCurrent ?? "—")</div>
+                <span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;margin-top:6px;color:@HC(p.Health);">
+                    <span class="health-dot h-@p.Health"></span>@HL(p.Health)
+                </span>
+            </div>
+        </div>
+        <div class="card card-pad">
+            <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("euro", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Contrato</span></div>
+            <div class="num" style="font-size:24px;font-weight:700;letter-spacing:-0.02em;">@Ui.Eur(p.Fees)</div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:6px;">Orçamento @Ui.Eur(p.Budget)</div>
+        </div>
+        <div class="card card-pad">
+            <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("trend", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Custo incorrido</span></div>
+            <div class="num" style="font-size:24px;font-weight:700;letter-spacing:-0.02em;">@Ui.Eur(p.Spent)</div>
+            <div style="margin:10px 0 6px;">@Components.Progress(spentPct, thin: true, color: spentPct > 90 ? "var(--danger)" : "var(--grad)")</div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;">@spentPct% do orçamento</div>
+        </div>
+        <div class="card card-pad">
+            <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("calendar", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Prazo</span></div>
+            <div class="num" style="font-size:24px;font-weight:700;letter-spacing:-0.02em;">@Ui.Date(p.EndPlanned)</div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:6px;">Início @Ui.Date(p.StartPlanned)</div>
+        </div>
     </div>
 
-    <div class="card" style="margin-bottom:22px;">
-        <div class="card-pad card-h"><h3>Fases</h3><span class="sub">@Model.Phases.Count</span></div>
-        <table class="tbl">
-            <thead><tr><th>Código</th><th>Fase</th><th>Estado</th><th style="width:220px;">Conclusão</th></tr></thead>
-            <tbody>
-            @foreach (var f in Model.Phases)
-            {
-                <tr>
-                    <td><span class="badge b-gray">@f.Code</span></td>
-                    <td style="font-weight:600;">@f.Name</td>
-                    <td><span class="badge @Ui.PhaseStatus(f.Status)">@f.Status</span></td>
-                    <td>
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            <div style="flex:1;height:8px;border-radius:99px;background:var(--surface-3);overflow:hidden;"><span style="display:block;height:100%;width:@((f.CompletionPct ?? 0))%;background:var(--grad);"></span></div>
-                            <span class="num" style="font-weight:700;font-size:12px;">@((int)(f.CompletionPct ?? 0))%</span>
+    @* ===== Tabs ===== *@
+    <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:22px;overflow-x:auto;">
+        @for (int i = 0; i < tabs.Length; i++)
+        {
+            <button type="button" class="py-tab" data-tab="@i" onclick="setTab(@i)" style="border:none;background:transparent;padding:12px 16px;font-weight:700;font-size:14px;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;">@tabs[i]</button>
+        }
+    </div>
+
+    @* ===== Tab 0 — Visão geral ===== *@
+    <div class="py-pane" data-pane="0">
+        <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start;">
+            <div class="grid" style="gap:20px;">
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Fases do projeto</h3><span class="sub">@Model.Phases.Count fases · @concluded concluída@(concluded == 1 ? "" : "s")</span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:14px;">
+                        @for (int i = 0; i < Model.Phases.Count; i++)
+                        {
+                            var ph = Model.Phases[i];
+                            var pct = (int)(ph.CompletionPct ?? 0);
+                            <div style="display:flex;align-items:center;gap:14px;">
+                                <div style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;background:@(pct == 100 ? "var(--success-soft)" : pct > 0 ? "var(--primary-soft)" : "var(--surface-3)");color:@(pct == 100 ? "var(--success)" : pct > 0 ? "var(--primary)" : "var(--text-3)");">
+                                    @if (pct == 100) { @Icons.Render("check", 16) } else { <span class="num" style="font-size:12px;font-weight:700;">@(i + 1)</span> }
+                                </div>
+                                <div style="flex:1;">
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                                        <span style="font-weight:700;font-size:14px;">@ph.Name</span>
+                                        <span class="badge @Ui.PhaseStatus(ph.Status)">@ph.Status</span>
+                                    </div>
+                                    @Components.Progress(pct, thin: true)
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Próximos entregáveis</h3></div>@if (Model.Deliverables.Count > 0) { <button type="button" class="btn btn-soft btn-sm card-h more" onclick="setTab(3)">Ver todos</button> }</div>
+                    @if (Model.Deliverables.Count > 0)
+                    {
+                        <table class="tbl">
+                            <tbody>
+                            @foreach (var d in Model.Deliverables.Take(4))
+                            {
+                                <tr>
+                                    <td style="padding-left:0;"><div style="font-weight:700;">@d.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(d.Phase ?? "—") · @(d.Version ?? "—")</div></td>
+                                    <td><span class="badge @Ui.DeliverableStatus(d.Status)"><span class="bdot"></span>@d.Status</span></td>
+                                    <td class="muted" style="font-weight:600;padding-right:0;text-align:right;">@Ui.Date(d.DueDate)</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="empty" style="padding:24px 0;">@Icons.Render("layers", 26)<div style="margin-top:8px;font-weight:600;">Sem entregáveis registados</div></div>
+                    }
+                </div>
+            </div>
+
+            <div class="grid" style="gap:20px;">
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Gestor &amp; equipa</h3></div></div>
+                    @{ var pm = Model.Team.FirstOrDefault(t => t.IsPm); }
+                    @if (pm != null)
+                    {
+                        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;">
+                            @Components.Avatar(pm.Name, 44)
+                            <div><div style="font-weight:700;">@pm.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@pm.Funcao</div></div>
+                            <span class="badge b-violet" style="margin-left:auto;">Gestor</span>
                         </div>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+                        <div class="divider"></div>
+                    }
+                    @foreach (var m in Model.Team.Where(t => !t.IsPm))
+                    {
+                        <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+                            @Components.Avatar(m.Name, 36)
+                            <div><div style="font-weight:700;font-size:13.5px;">@m.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@m.Funcao</div></div>
+                        </div>
+                    }
+                </div>
+
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Riscos abertos</h3></div>@if (openRisks.Count > 0) { <span class="badge b-red card-h more">@openRisks.Count</span> }</div>
+                    @if (openRisks.Count > 0)
+                    {
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            @foreach (var r in openRisks.Take(3))
+                            {
+                                var sv = Sev(r);
+                                <div style="display:flex;align-items:center;gap:10px;padding:11px;border:1px solid var(--border);border-radius:var(--r-sm);">
+                                    <div style="color:@(sv.tag == "b-red" ? "var(--danger)" : "var(--warning)");">@Icons.Render("alert", 18)</div>
+                                    <div style="flex:1;"><div style="font-weight:700;font-size:13.5px;">@r.Title</div><div class="muted-3" style="font-size:12px;font-weight:600;">Severidade @sv.sev</div></div>
+                                    <span class="badge @sv.tag">@sv.sev</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty">@Icons.Render("shield", 28)<div style="margin-top:8px;font-weight:600;">Sem riscos abertos</div></div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;">
-        <div class="card">
-            <div class="card-pad card-h"><h3>Tarefas</h3><span class="sub">@Model.Tasks.Count</span></div>
-            <table class="tbl">
-                <tbody>
-                @foreach (var t in Model.Tasks)
+    @* ===== Tab 1 — Fases ===== *@
+    <div class="py-pane" data-pane="1" style="display:none;">
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Fases do projeto</h3><span class="sub">@Model.Phases.Count fases · @concluded concluída@(concluded == 1 ? "" : "s")</span></div><a class="btn btn-soft btn-sm card-h more" asp-controller="Gantt" asp-action="Index">Abrir cronograma @Icons.Render("arrowRight", 14)</a></div>
+            <div style="display:flex;flex-direction:column;gap:18px;">
+                @for (int i = 0; i < Model.Phases.Count; i++)
                 {
-                    var st = Ui.TaskState(t.State);
-                    <tr><td style="font-weight:600;">@t.Title</td><td>@(t.Assignee?.Name ?? "—")</td><td><span class="badge @st.cls">@st.label</span></td></tr>
+                    var ph = Model.Phases[i];
+                    var pct = (int)(ph.CompletionPct ?? 0);
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <div style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:@(pct == 100 ? "var(--success-soft)" : pct > 0 ? "var(--primary-soft)" : "var(--surface-3)");color:@(pct == 100 ? "var(--success)" : pct > 0 ? "var(--primary)" : "var(--text-3)");">
+                            @if (pct == 100) { @Icons.Render("check", 17) } else { <span class="num" style="font-size:13px;font-weight:700;">@(i + 1)</span> }
+                        </div>
+                        <div style="flex:1;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:6px;align-items:center;">
+                                <span style="font-weight:700;font-size:14.5px;">@ph.Name</span>
+                                <div style="display:flex;align-items:center;gap:10px;"><span class="num muted-3" style="font-size:12.5px;font-weight:700;">@pct%</span><span class="badge @Ui.PhaseStatus(ph.Status)">@ph.Status</span></div>
+                            </div>
+                            @Components.Progress(pct, thin: true)
+                        </div>
+                    </div>
                 }
-                @if (Model.Tasks.Count == 0) { <tr><td class="muted">Sem tarefas.</td></tr> }
-                </tbody>
-            </table>
+            </div>
         </div>
-        <div class="card">
-            <div class="card-pad card-h"><h3>Entregáveis</h3><span class="sub">@Model.Deliverables.Count</span></div>
-            <table class="tbl">
-                <tbody>
-                @foreach (var d in Model.Deliverables)
-                {
-                    <tr><td style="font-weight:600;">@d.Name <span class="muted-3">@d.Version</span></td><td><span class="badge @Ui.DeliverableStatus(d.Status)">@d.Status</span></td></tr>
-                }
-                @if (Model.Deliverables.Count == 0) { <tr><td class="muted">Sem entregáveis.</td></tr> }
-                </tbody>
-            </table>
+    </div>
+
+    @* ===== Tab 2 — Tarefas (mini-kanban) ===== *@
+    <div class="py-pane" data-pane="2" style="display:none;">
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Tarefas</h3><span class="sub">@Model.Tasks.Count tarefas</span></div><div style="display:flex;gap:8px;margin-left:auto;"><a class="btn btn-soft btn-sm" asp-controller="Tasks" asp-action="Index">Abrir Kanban @Icons.Render("arrowRight", 14)</a></div></div>
+            @if (Model.Tasks.Count > 0)
+            {
+                <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;">
+                    @foreach (var (key, label, accent) in cols)
+                    {
+                        var col = Model.Tasks.Where(t => t.State == key).ToList();
+                        <div>
+                            <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;"><span style="width:8px;height:8px;border-radius:99px;background:@accent;"></span><span style="font-weight:700;font-size:12.5px;">@label</span><span class="num muted-3" style="font-size:12px;font-weight:700;">@col.Count</span></div>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                @foreach (var t in col)
+                                {
+                                    <div class="card" style="padding:10px 12px;display:flex;flex-direction:column;gap:9px;">
+                                        <div style="font-weight:700;font-size:13px;line-height:1.35;">@t.Title</div>
+                                        <div style="display:flex;align-items:center;gap:8px;">
+                                            <span class="badge @PrioTag(t.Priority)">@t.Priority</span>
+                                            <span class="num muted-3" style="font-size:11.5px;font-weight:700;color:@(t.Overdue ? "var(--danger)" : "var(--text-3)");">@Ui.Date(t.DueDate)</span>
+                                            <div style="margin-left:auto;">@Components.Avatar(t.Assignee?.Name, 22)</div>
+                                        </div>
+                                    </div>
+                                }
+                                @if (col.Count == 0) { <div class="muted-3" style="font-size:12px;font-weight:600;padding:6px 2px;">—</div> }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty" style="padding:48px 0;">@Icons.Render("checkSquare", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem tarefas</div><div style="margin-top:4px;">@(p.Status == "Concluído" ? "Projeto concluído — sem tarefas em aberto." : "Adicione a primeira tarefa deste projeto.")</div></div>
+            }
         </div>
+    </div>
+
+    @* ===== Tab 3 — Entregáveis ===== *@
+    <div class="py-pane" data-pane="3" style="display:none;">
         <div class="card">
-            <div class="card-pad card-h"><h3>Milestones de pagamento</h3><span class="sub">@Model.Milestones.Count</span></div>
-            <table class="tbl">
-                <tbody>
-                @foreach (var m in Model.Milestones)
-                {
-                    <tr><td style="font-weight:600;">@m.Name</td><td class="num" style="text-align:right;">@Ui.Eur(m.Amount)</td><td><span class="badge @Ui.MilestoneStatus(m.Status)">@m.Status</span></td></tr>
-                }
-                @if (Model.Milestones.Count == 0) { <tr><td class="muted">Sem milestones.</td></tr> }
-                </tbody>
-            </table>
+            <div class="card-pad card-h" style="padding-bottom:0;"><div><h3>Entregáveis</h3><span class="sub">@Model.Deliverables.Count entregáveis</span></div></div>
+            @if (Model.Deliverables.Count > 0)
+            {
+                <table class="tbl">
+                    <thead><tr><th>Entregável</th><th>Fase</th><th>Versão</th><th>Estado</th><th>Responsável</th><th>Prazo</th></tr></thead>
+                    <tbody>
+                    @foreach (var d in Model.Deliverables)
+                    {
+                        <tr>
+                            <td><div style="font-weight:700;">@d.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(d.Type ?? "—")@(d.Required == true ? " · obrigatório" : "")</div></td>
+                            <td class="muted">@(d.Phase ?? "—")</td>
+                            <td class="num" style="font-weight:700;">@(d.Version ?? "—")</td>
+                            <td><span class="badge @Ui.DeliverableStatus(d.Status)"><span class="bdot"></span>@d.Status</span></td>
+                            <td><div style="display:flex;align-items:center;gap:8px;">@Components.Avatar(d.Owner?.Name, 26)<span style="font-weight:600;font-size:13px;">@(d.Owner?.Name ?? "—")</span></div></td>
+                            <td class="muted" style="font-weight:600;">@Ui.Date(d.DueDate)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty" style="padding:48px 0;">@Icons.Render("layers", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem entregáveis</div></div>
+            }
         </div>
-        <div class="card">
-            <div class="card-pad card-h"><h3>Riscos</h3><span class="sub">@Model.Risks.Count</span></div>
-            <table class="tbl">
-                <tbody>
-                @foreach (var r in Model.Risks)
+    </div>
+
+    @* ===== Tab 4 — Financeiro ===== *@
+    <div class="py-pane" data-pane="4" style="display:none;">
+        <div class="grid" style="gap:20px;">
+            <div class="grid cols-4">
+                <div class="card card-pad">
+                    <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("euro", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Contrato</span></div>
+                    <div class="num" style="font-size:24px;font-weight:700;">@Ui.Eur(p.Fees)</div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:6px;">Orçamento @Ui.Eur(p.Budget)</div>
+                </div>
+                <div class="card card-pad">
+                    <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("trend", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Custo incorrido</span></div>
+                    <div class="num" style="font-size:24px;font-weight:700;">@Ui.Eur(p.Spent)</div>
+                    <div style="margin:10px 0 6px;">@Components.Progress(spentPct, thin: true, color: spentPct > 90 ? "var(--danger)" : "var(--grad)")</div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;">@spentPct% do orçamento</div>
+                </div>
+                <div class="card card-pad">
+                    <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("trend", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Margem prevista</span></div>
+                    <div class="num" style="font-size:24px;font-weight:700;">@Ui.Eur(margem)</div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:6px;">@margemPct% do contrato</div>
+                </div>
+                <div class="card card-pad">
+                    <div style="display:flex;align-items:center;gap:8px;color:var(--text-3);margin-bottom:12px;">@Icons.Render("euro", 17)<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Faturado</span></div>
+                    <div class="num" style="font-size:24px;font-weight:700;">@Ui.Eur(faturado)</div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:6px;">Recebido @Ui.Eur(recebido)</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-pad card-h" style="padding-bottom:0;"><div><h3>Faturas</h3><span class="sub">@Model.Invoices.Count faturas</span></div><a class="btn btn-soft btn-sm card-h more" asp-controller="Payments" asp-action="Index">Abrir financeiro @Icons.Render("arrowRight", 14)</a></div>
+                @if (Model.Invoices.Count > 0)
                 {
-                    <tr><td style="font-weight:600;">@r.Title</td><td class="muted-3">P@(r.Probability)·I@(r.Impact)</td><td><span class="badge @Ui.RiskStatus(r.Status)">@r.Status</span></td></tr>
+                    <table class="tbl">
+                        <thead><tr><th>Nº</th><th>Milestone</th><th>Valor</th><th>Estado</th><th>Emitida</th><th>Vencimento</th></tr></thead>
+                        <tbody>
+                        @foreach (var i in Model.Invoices)
+                        {
+                            <tr>
+                                <td class="num" style="font-weight:700;">@i.Number</td>
+                                <td class="muted">@(i.MilestoneTxt ?? "—")</td>
+                                <td class="num" style="font-weight:700;">@Ui.Eur(i.Amount)</td>
+                                <td><span class="badge @Ui.InvoiceStatus(i.Status)"><span class="bdot"></span>@i.Status</span></td>
+                                <td class="muted" style="font-weight:600;">@Ui.Date(i.IssuedAt)</td>
+                                <td class="muted" style="font-weight:600;">@Ui.Date(i.DueAt)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 }
-                @if (Model.Risks.Count == 0) { <tr><td class="muted">Sem riscos.</td></tr> }
-                </tbody>
-            </table>
+                else
+                {
+                    <div class="empty" style="padding:40px 0;">@Icons.Render("euro", 28)<div style="margin-top:8px;font-weight:600;">Sem faturas emitidas</div></div>
+                }
+            </div>
+            @if (Model.Milestones.Count > 0)
+            {
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Milestones de faturação</h3></div></div>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        @foreach (var m in Model.Milestones)
+                        {
+                            <div style="display:flex;align-items:center;gap:12px;padding:11px;border:1px solid var(--border);border-radius:var(--r-sm);">
+                                <div style="flex:1;"><div style="font-weight:700;font-size:13.5px;">@m.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(m.TriggerType ?? "—") · @(m.Pct?.ToString("0.#") ?? "—")% do contrato</div></div>
+                                <span class="num" style="font-weight:700;font-size:13.5px;">@Ui.Eur(m.Amount)</span>
+                                <span class="badge @Ui.MilestoneStatus(m.Status)">@m.Status</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ===== Tab 5 — Equipa ===== *@
+    <div class="py-pane" data-pane="5" style="display:none;">
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Equipa do projeto</h3><span class="sub">@Model.Team.Count membros</span></div></div>
+            <div style="display:flex;flex-direction:column;">
+                @for (int i = 0; i < Model.Team.Count; i++)
+                {
+                    var m = Model.Team[i];
+                    <div style="display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:@(i < Model.Team.Count - 1 ? "1px solid var(--border)" : "none");">
+                        @Components.Avatar(m.Name, 42)
+                        <div style="flex:1;"><div style="font-weight:700;">@m.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@m.Funcao</div></div>
+                        @if (m.IsPm) { <span class="badge b-violet">Gestor</span> }
+                        @if (m.Rate is { } rate) { <span class="num muted-3" style="font-size:12.5px;font-weight:700;min-width:70px;text-align:right;">@Ui.Eur(rate)/h</span> }
+                    </div>
+                }
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    function setTab(i) {
+        document.querySelectorAll('.py-pane').forEach(p => p.style.display = p.dataset.pane == i ? '' : 'none');
+        document.querySelectorAll('.py-tab').forEach(t => {
+            var on = t.dataset.tab == i;
+            t.style.color = on ? 'var(--primary-700)' : 'var(--text-2)';
+            t.style.borderBottomColor = on ? 'var(--primary)' : 'transparent';
+        });
+    }
+    setTab(0);
+</script>

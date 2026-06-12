@@ -1,36 +1,195 @@
 @model List<ProjectYard.Data.Entities.Task>
 @{
-    ViewData["Title"] = "Tasks";
-    var cols = new[] { ("todo", "Por fazer"), ("doing", "Em curso"), ("review", "Em revisão"), ("done", "Concluído") };
-    string PrioCls(string p) => p == "Alta" ? "b-red" : p == "Média" ? "b-amber" : "b-gray";
+    ViewData["Title"] = "Tarefas";
+    var people = (IEnumerable<dynamic>)ViewBag.People;
+    var projects = (IEnumerable<dynamic>)ViewBag.Projects;
+    long? fAssignee = ViewBag.FAssignee;
+    string? fPrio = ViewBag.FPrio;
+    long? fProject = ViewBag.FProject;
+    string viewMode = ViewBag.View;
+    bool anyFilter = fAssignee != null || !string.IsNullOrEmpty(fPrio) || fProject != null;
+    string PrioTag(string pr) => pr == "Alta" ? "b-red" : pr == "Média" ? "b-amber" : "b-gray";
+    var cols = new[] { ("todo", "Por fazer", "var(--text-3)"), ("doing", "Em curso", "var(--info)"), ("review", "Em revisão", "var(--warning)"), ("done", "Concluído", "var(--success)") };
+    string QUrl(object? a = null, object? pr = null, object? proj = null, string? v = null)
+        => Url.Action("Index", new { assignee = a ?? fAssignee, prio = pr ?? fPrio, project = proj ?? fProject, view = (v ?? viewMode) == "kanban" ? null : (v ?? viewMode) })!;
 }
 <div class="content">
-    <div class="page-head"><div><h1>Tasks</h1><p>Quadro Kanban — @Model.Count tarefas.</p></div></div>
-    <div class="grid" style="grid-template-columns:repeat(4,1fr);align-items:start;">
-        @foreach (var (key, label) in cols)
-        {
-            var items = Model.Where(t => t.State == key).ToList();
-            <div>
-                <div style="display:flex;align-items:center;gap:8px;padding:0 4px 12px;">
-                    <span style="font-weight:700;font-size:14px;">@label</span>
-                    <span class="badge b-gray">@items.Count</span>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                    @foreach (var t in items)
+    <div class="page-head">
+        <div>
+            <h1>Tarefas</h1>
+            <p>Arrasta os cartões entre colunas — o estado fica guardado.</p>
+        </div>
+        <div class="page-head__actions">
+            <a class="btn btn-ghost" href="@Url.Action("Index")">@Icons.Render("filter", 16) @(anyFilter ? "Limpar filtros" : "Filtrar")</a>
+            <button class="btn btn-primary" type="button" onclick="openNt('todo')">@Icons.Render("plus", 16) Nova tarefa</button>
+        </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <div class="seg">
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "kanban" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@QUrl(v: "kanban")">@Icons.Render("checkSquare", 15) Quadro</a>
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "list" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@QUrl(v: "list")">@Icons.Render("menu", 15) Lista</a>
+        </div>
+        <div style="display:flex;gap:8px;margin-left:8px;">
+            <details style="position:relative;">
+                <summary class="chip @(fPrio != null ? "active" : "")" style="list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">@Icons.Render("alert", 14) @(fPrio ?? "Prioridade") @Icons.Render("chevD", 13)</summary>
+                <div class="flt-pop">
+                    <a class="flt-opt @(fPrio == null ? "on" : "")" href="@Url.Action("Index", new { assignee = fAssignee, project = fProject, view = viewMode == "kanban" ? null : viewMode })">Todas</a>
+                    @foreach (var pr in new[] { "Alta", "Média", "Baixa" })
                     {
-                        <div class="card card-pad" style="padding:14px;">
-                            <div style="font-weight:600;font-size:13.5px;line-height:1.35;margin-bottom:10px;">@t.Title</div>
-                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                <span class="badge @PrioCls(t.Priority)">@t.Priority</span>
-                                <span class="badge b-gray">@(t.Project?.Code ?? "")</span>
-                                @if (t.Overdue) { <span class="badge b-red">Atrasada</span> }
-                                <span class="muted-3" style="margin-left:auto;font-size:11.5px;font-weight:600;">@(t.Assignee?.Name ?? "—")</span>
-                            </div>
-                        </div>
+                        <a class="flt-opt @(fPrio == pr ? "on" : "")" href="@QUrl(pr: pr)">@pr</a>
                     }
-                    @if (items.Count == 0) { <div class="muted" style="padding:10px 4px;font-size:13px;">Vazio</div> }
+                </div>
+            </details>
+            <details style="position:relative;">
+                <summary class="chip @(fProject != null ? "active" : "")" style="list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">@Icons.Render("folder", 14) Projeto @Icons.Render("chevD", 13)</summary>
+                <div class="flt-pop">
+                    <a class="flt-opt @(fProject == null ? "on" : "")" href="@Url.Action("Index", new { assignee = fAssignee, prio = fPrio, view = viewMode == "kanban" ? null : viewMode })">Todos</a>
+                    @foreach (var pj in projects)
+                    {
+                        <a class="flt-opt @(fProject == (long)pj.Id ? "on" : "")" href="@QUrl(proj: (long)pj.Id)">@pj.Code — @pj.Name</a>
+                    }
+                </div>
+            </details>
+        </div>
+        <div style="margin-left:auto;display:flex;">
+            @{ int ai = 0; }
+            @foreach (var u in people)
+            {
+                var selected = fAssignee == (long)u.Id;
+                <a title="@u.Name" href="@(selected ? Url.Action("Index", new { prio = fPrio, project = fProject, view = viewMode == "kanban" ? null : viewMode }) : QUrl(a: (long)u.Id))"
+                   style="margin-left:@(ai++ == 0 ? "0" : "-9px");border-radius:99px;opacity:@(fAssignee != null && !selected ? "0.4" : "1");transform:@(selected ? "translateY(-2px)" : "none");transition:opacity .12s,transform .12s;">
+                    <div style="border-radius:99px;border:2px solid @(selected ? "var(--accent)" : "var(--surface)");@(selected ? "box-shadow:0 0 0 1px var(--accent);" : "")">@Components.Avatar((string)u.Name, 30)</div>
+                </a>
+            }
+        </div>
+    </div>
+
+    @if (viewMode == "kanban")
+    {
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start;">
+            @foreach (var (key, label, accent) in cols)
+            {
+                var cards = Model.Where(t => t.State == key).ToList();
+                <div class="py-col" data-col="@key"
+                     style="background:var(--surface-2);border-radius:var(--r);padding:12px;border:1px solid var(--border);transition:background .12s,border-color .12s;min-height:90px;">
+                    <div style="display:flex;align-items:center;gap:9px;padding:4px 6px 12px;">
+                        <span style="width:9px;height:9px;border-radius:99px;background:@accent;"></span>
+                        <span style="font-weight:700;font-size:14px;">@label</span>
+                        <span class="num" style="margin-left:4px;font-weight:700;font-size:12.5px;color:var(--text-3);background:var(--surface);padding:1px 8px;border-radius:99px;">@cards.Count</span>
+                        <button class="icon-btn" type="button" style="margin-left:auto;width:28px;height:28px;border:none;background:transparent;" onclick="openNt('@key')" title="Adicionar tarefa">@Icons.Render("plus", 16)</button>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        @foreach (var t in cards)
+                        {
+                            <div class="card rise py-card" draggable="true" data-id="@t.Id"
+                                 style="padding:14px;cursor:grab;box-shadow:var(--sh-sm);">
+                                <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                                    <span class="badge @PrioTag(t.Priority)"><span class="bdot"></span>@t.Priority</span>
+                                    <span class="badge b-violet">@(t.Project?.Code ?? "")</span>
+                                </div>
+                                <div style="font-weight:700;font-size:14px;line-height:1.35;margin-bottom:12px;">@t.Title</div>
+                                <div style="display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:12.5px;font-weight:600;">
+                                    <span style="display:inline-flex;align-items:center;gap:5px;color:@(t.Overdue ? "var(--danger)" : "var(--text-3)");">@Icons.Render("clock", 14)@Ui.Date(t.DueDate)</span>
+                                    @if (t.Overdue) { <span class="badge b-red" style="font-size:10.5px;">Atraso</span> }
+                                    <span style="margin-left:auto;">@Components.Avatar(t.Assignee?.Name, 28)</span>
+                                </div>
+                            </div>
+                        }
+                        <div class="py-drop muted-3" style="text-align:center;padding:18px 8px;font-size:12.5px;font-weight:600;border:1px dashed var(--border-2);border-radius:var(--r-sm);@(cards.Count > 0 ? "display:none;" : "")">Larga aqui</div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <table class="tbl">
+                <thead><tr><th>Tarefa</th><th>Projeto</th><th>Estado</th><th>Prioridade</th><th>Responsável</th><th>Prazo</th></tr></thead>
+                <tbody>
+                @foreach (var t in Model)
+                {
+                    var col = cols.First(c => c.Item1 == t.State);
+                    <tr>
+                        <td style="max-width:280px;"><div style="font-weight:700;">@t.Title</div></td>
+                        <td class="muted" style="font-weight:600;">@(t.Project?.Code ?? "—")</td>
+                        <td><span style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;"><span style="width:8px;height:8px;border-radius:99px;background:@col.Item3;"></span>@col.Item2</span></td>
+                        <td><span class="badge @PrioTag(t.Priority)"><span class="bdot"></span>@t.Priority</span></td>
+                        <td><div style="display:flex;align-items:center;gap:8px;">@Components.Avatar(t.Assignee?.Name, 28)<span style="font-weight:600;font-size:13px;">@(t.Assignee?.Name.Split(' ').FirstOrDefault() ?? "—")</span></div></td>
+                        <td class="@(t.Overdue ? "" : "muted")" style="font-weight:700;@(t.Overdue ? "color:var(--danger);" : "")">@Ui.Date(t.DueDate)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* ===== Modal Nova tarefa ===== *@
+<div class="modal-overlay" id="ntOverlay" style="display:none;" onmousedown="if(event.target===this)closeNt()">
+    <div class="modal-card" style="width:520px;">
+        <div class="modal-head">
+            <div><h3>Nova tarefa</h3><p id="ntSub"></p></div>
+            <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="closeNt()">@Icons.Render("x", 18)</button>
+        </div>
+        <form asp-action="Create" method="post">
+            <div class="modal-body">
+                <input type="hidden" name="state" id="ntState" value="todo" />
+                <div class="fld"><label>Título</label><div class="fld__box" style="height:46px;"><input name="title" placeholder="Ex.: Pormenores construtivos — cobertura" required /></div></div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Prioridade</label><div class="fld__box" style="height:46px;"><select name="priority" style="flex:1;border:none;outline:none;background:transparent;font-size:14.5px;font-weight:600;color:var(--text);"><option>Alta</option><option selected>Média</option><option>Baixa</option></select></div></div>
+                    <div class="fld" style="flex:1;"><label>Prazo</label><div class="fld__box" style="height:46px;"><input type="date" name="dueDate" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;" /></div></div>
+                </div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Projeto</label><div class="fld__box" style="height:46px;"><select name="projectId" required style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);">@foreach (var pj in projects) { <option value="@pj.Id">@pj.Code — @pj.Name</option> }</select></div></div>
+                    <div class="fld" style="flex:1;"><label>Responsável</label><div class="fld__box" style="height:46px;"><select name="assigneeId" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);"><option value="">— sem responsável —</option>@foreach (var u in people) { <option value="@u.Id">@u.Name</option> }</select></div></div>
                 </div>
             </div>
-        }
+            <div class="modal-foot">
+                <button class="btn btn-ghost" type="button" onclick="closeNt()">Cancelar</button>
+                <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Criar tarefa</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<form id="afForm">@Html.AntiForgeryToken()</form>
+
+<script>
+    var colNames = { todo: 'Por fazer', doing: 'Em curso', review: 'Em revisão', done: 'Concluído' };
+    function openNt(col) {
+        document.getElementById('ntState').value = col;
+        document.getElementById('ntSub').textContent = 'Na coluna “' + colNames[col] + '”';
+        document.getElementById('ntOverlay').style.display = 'grid';
+    }
+    function closeNt() { document.getElementById('ntOverlay').style.display = 'none'; }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNt(); });
+
+    // Drag & drop — move persistido via POST /Tasks/Move
+    var dragged = null;
+    document.querySelectorAll('.py-card').forEach(c => {
+        c.addEventListener('dragstart', e => { dragged = c; c.style.opacity = '.4'; e.dataTransfer.effectAllowed = 'move'; });
+        c.addEventListener('dragend', () => { if (dragged) dragged.style.opacity = '1'; dragged = null; resetCols(); });
+    });
+    function resetCols() {
+        document.querySelectorAll('.py-col').forEach(col => { col.style.background = 'var(--surface-2)'; col.style.borderStyle = 'solid'; col.style.borderColor = 'var(--border)'; });
+    }
+    document.querySelectorAll('.py-col').forEach(col => {
+        col.addEventListener('dragover', e => { e.preventDefault(); col.style.background = 'var(--accent-soft)'; col.style.borderStyle = 'dashed'; col.style.borderColor = 'var(--accent)'; });
+        col.addEventListener('dragleave', () => { col.style.background = 'var(--surface-2)'; col.style.borderStyle = 'solid'; col.style.borderColor = 'var(--border)'; });
+        col.addEventListener('drop', async e => {
+            e.preventDefault();
+            resetCols();
+            if (!dragged) return;
+            var id = dragged.dataset.id, state = col.dataset.col;
+            var token = document.querySelector('#afForm input[name="__RequestVerificationToken"]').value;
+            var res = await fetch('@Url.Action("Move")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ id: id, state: state, __RequestVerificationToken: token }),
+            });
+            if (res.ok) location.reload();
+        });
+    });
+</script>
