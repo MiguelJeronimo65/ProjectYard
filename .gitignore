@@ -11,8 +11,12 @@
 
 # ---- appsettings com segredos ----
 appsettings.Development.json
+appsettings.Production.json
 appsettings.*.Local.json
 *.env
+
+# ---- output de publicação (deploy SmarterASP.NET) ----
+[Pp]ublish/
 
 # ---- Node (se algum módulo usar) ----
 node_modules/
