@@ -43,7 +43,7 @@
             ("Projects", "Projetos", "folder", true, 0),
             ("Tasks", "Tasks", "checkSquare", true, tasksBadge),
             ("Gantt", "Cronograma", "gantt", true, 0),
-            ("Calendar", "Calendário", "calendar", false, 0),
+            ("Calendar", "Calendário", "calendar", true, 0),
             ("Timesheets", "Registo de horas", "clock", true, 0),
         }),
         ("Comercial", new[]
@@ -55,7 +55,7 @@
         ("Comunicação", new[]
         {
             ("Chat", "Chat", "message", true, 0),
-            ("Mail", "Correio", "mail", false, 0),
+            ("Mail", "Correio", "mail", true, 0),
             ("Sms", "SMS", "sms", true, 0),
         }),
         ("Controlo", new[]
@@ -143,7 +143,7 @@
                     <button class="btn btn-primary btn-sm" type="button" style="width:100%;justify-content:center;margin-top:8px;">Fazer upgrade</button>
                 </div>
             }
-            <a class="nav-item" href="#" style="opacity:.5;">@Icons.Render("settings", 19)<span>Definições</span></a>
+            <a class="nav-item @(ctrl == "Settings" ? "active" : "")" href="@Url.Action("Index","Settings")">@Icons.Render("settings", 19)<span>Definições</span></a>
         </div>
     </aside>
 

@@ -1,0 +1,210 @@
+@using ProjectYard.Data.Identity
+@{
+    ViewData["Title"] = "Definições";
+    var me = (ApplicationUser)ViewBag.Me;
+    string section = ViewBag.Section;
+    var tenant = (Tenant?)ViewBag.Tenant;
+    var team = (List<ApplicationUser>)ViewBag.Team;
+    var lookups = (List<Lookup>)ViewBag.Lookups;
+    var sections = new[]
+    {
+        ("conta", "Conta", "user", "Perfil e workspace"),
+        ("seguranca", "Segurança", "lock", "Palavra-passe e 2FA"),
+        ("plano", "Plano & Faturação", "card", "Subscrição e faturas"),
+        ("equipa", "Equipa & permissões", "users", "Membros e papéis"),
+        ("lookups", "Listas & lookups", "layers", "Fases, prioridades, estados"),
+        ("notificacoes", "Notificações", "bell", "Email, SMS e portal"),
+    };
+    var plans = new[]
+    {
+        ("Starter", "29", "Freelancers e ateliers pequenos", new[] { "3 projetos ativos", "1 utilizador", "5 GB de armazenamento", "Suporte por email" }),
+        ("Pro", "89", "Ateliers em crescimento", new[] { "Projetos ilimitados", "Até 15 utilizadores", "100 GB de armazenamento", "SMS, Aprovações e Portal", "Integrações BIM" }),
+        ("Enterprise", "Sob consulta", "Grandes gabinetes", new[] { "Tudo do plano Pro", "Utilizadores ilimitados", "Armazenamento dedicado", "SSO e SLA dedicado", "Gestor de conta" }),
+    };
+    var notifs = new[]
+    {
+        ("Tarefa atribuída a mim", true, false, true), ("Comentário ou menção", true, false, true),
+        ("Entregável submetido", true, false, true), ("Pedido de aprovação", true, true, true),
+        ("Aprovação concluída", true, true, false), ("Nova fatura ou pagamento", true, false, true),
+        ("Risco aberto ou agravado", true, true, false), ("Resumo diário do workspace", false, false, true),
+    };
+    var perms = new (string cap, int[] vals)[]
+    {
+        ("Ver projetos e tarefas", new[] { 1, 1, 1, 1, 2 }), ("Criar e editar projetos", new[] { 1, 1, 1, 0, 0 }),
+        ("Gerir tarefas e cronograma", new[] { 1, 1, 1, 1, 0 }), ("Aprovar entregáveis", new[] { 1, 1, 1, 0, 0 }),
+        ("Faturação e pagamentos", new[] { 1, 1, 0, 0, 0 }), ("Enviar SMS a clientes", new[] { 1, 1, 1, 0, 0 }),
+        ("Gerir equipa e permissões", new[] { 1, 1, 0, 0, 0 }), ("Gerir faturação do workspace", new[] { 1, 0, 0, 0, 0 }),
+    };
+    var roleNames = new[] { "Superadmin", "Administrador", "Gestor", "Membro", "Cliente" };
+    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);";
+}
+<div class="content">
+    <div class="page-head"><div><h1>Definições</h1><p>Conta, segurança, plano, equipa e listas do workspace</p></div></div>
+
+    <div class="grid" style="grid-template-columns:264px 1fr;align-items:start;">
+        @* rail *@
+        <div class="card" style="overflow:hidden;">
+            @foreach (var (id, label, icon, desc) in sections)
+            {
+                var on = section == id;
+                <a href="@Url.Action("Index", new { s = id })" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
+                    <div style="width:36px;height:36px;border-radius:10px;background:@(on ? "var(--accent)" : "var(--surface-2)");color:@(on ? "var(--navy-700)" : "var(--text-2)");display:grid;place-items:center;flex-shrink:0;">@Icons.Render(icon, 17)</div>
+                    <div><div style="font-weight:700;font-size:13.5px;">@label</div><div class="muted-3" style="font-size:11.5px;font-weight:600;">@desc</div></div>
+                </a>
+            }
+        </div>
+
+        @* conteúdo *@
+        <div class="grid" style="gap:20px;">
+            @if (section == "conta")
+            {
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Perfil</h3><span class="sub">Como apareces no workspace</span></div></div>
+                    <form asp-action="UpdateProfile" method="post" style="max-width:540px;">
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+                            @Components.Avatar(me.Name, 56)
+                            <div><div style="font-weight:700;font-size:15px;">@me.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@me.Email · @me.Role</div></div>
+                        </div>
+                        <div class="fld"><label>Nome</label><div class="fld__box" style="height:46px;"><input name="name" value="@me.Name" required /></div></div>
+                        <div class="fld"><label>Cargo</label><div class="fld__box" style="height:46px;"><input name="funcao" value="@me.Funcao" placeholder="Ex.: Arquiteto Sénior" /></div></div>
+                        <button class="btn btn-primary" type="submit">Guardar alterações</button>
+                    </form>
+                </div>
+                @if (tenant != null)
+                {
+                    <div class="card card-pad">
+                        <div class="card-h"><div><h3>Workspace</h3></div></div>
+                        <div style="display:flex;align-items:center;gap:14px;">
+                            <span class="avatar sq" style="width:48px;height:48px;background:@(tenant.PrimaryColor ?? "#2c3e51");font-size:17px;">@Components.Initials(tenant.Name)</span>
+                            <div><div style="font-weight:700;font-size:15px;">@tenant.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">projectyard.app/@tenant.Slug · Plano @tenant.Plan</div></div>
+                            <span class="badge @Ui.TenantStatus(tenant.Status)" style="margin-left:auto;">@tenant.Status</span>
+                        </div>
+                    </div>
+                }
+            }
+            else if (section == "seguranca")
+            {
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Alterar palavra-passe</h3><span class="sub">Mínimo 6 caracteres, com maiúscula e dígito</span></div></div>
+                    <form asp-action="ChangePassword" method="post" style="max-width:440px;">
+                        <div class="fld"><label>Palavra-passe atual</label><div class="fld__box" style="height:46px;"><input name="current" type="password" required autocomplete="current-password" /></div></div>
+                        <div class="fld"><label>Nova palavra-passe</label><div class="fld__box" style="height:46px;"><input name="nova" type="password" required autocomplete="new-password" /></div></div>
+                        <div class="fld"><label>Confirmar nova palavra-passe</label><div class="fld__box" style="height:46px;"><input name="confirmar" type="password" required autocomplete="new-password" /></div></div>
+                        <button class="btn btn-primary" type="submit">@Icons.Render("lock", 15) Alterar palavra-passe</button>
+                    </form>
+                </div>
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Autenticação de dois fatores</h3></div><span class="badge b-gray card-h more">Em breve</span></div>
+                    <div class="muted" style="font-size:13.5px;font-weight:600;">Proteção adicional da conta com código por SMS ou app autenticadora.</div>
+                </div>
+            }
+            else if (section == "plano")
+            {
+                <div class="grid cols-3">
+                    @foreach (var (name, price, tagline, feats) in plans)
+                    {
+                        var current = tenant?.Plan == name;
+                        <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px;@(current ? "border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);" : "")">
+                            <div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:700;font-size:16px;font-family:var(--font-display);">@name</span>@if (current) { <span class="badge b-gold">Atual</span> }</div>
+                            <div><span class="num display" style="font-size:28px;font-weight:700;">@(price == "Sob consulta" ? price : "€" + price)</span>@if (price != "Sob consulta") { <span class="muted-3" style="font-size:12.5px;font-weight:600;"> /mês</span> }</div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;">@tagline</div>
+                            <div style="display:flex;flex-direction:column;gap:7px;margin-top:4px;">
+                                @foreach (var f in feats) { <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-2);">@Icons.Render("check", 14) @f</div> }
+                            </div>
+                            <button class="btn @(current ? "btn-ghost" : "btn-primary")" type="button" style="margin-top:auto;justify-content:center;">@(current ? "Plano atual" : "Escolher")</button>
+                        </div>
+                    }
+                </div>
+            }
+            else if (section == "equipa")
+            {
+                <div class="card">
+                    <div class="card-pad card-h" style="padding-bottom:0;"><div><h3>Equipa</h3><span class="sub">@team.Count membros</span></div></div>
+                    <table class="tbl">
+                        <thead><tr><th>Membro</th><th>Email</th><th>Papel</th><th>Estado</th><th>Custo/h</th></tr></thead>
+                        <tbody>
+                        @foreach (var u in team)
+                        {
+                            <tr>
+                                <td><div style="display:flex;align-items:center;gap:10px;">@Components.Avatar(u.Name, 34)<div><div style="font-weight:700;">@u.Name @(u.Id == me.Id ? "· tu" : "")</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(u.Funcao ?? "—")</div></div></div></td>
+                                <td class="muted" style="font-weight:600;">@u.Email</td>
+                                <td><span class="badge @(u.Role == "Owner" ? "b-gold" : u.Role is "Administrador" or "Gestor" ? "b-violet" : "b-gray")">@u.Role</span></td>
+                                <td><span class="badge @(u.Status == "Ativo" ? "b-green" : "b-amber")">@u.Status</span></td>
+                                <td class="num" style="font-weight:700;">@(u.CostHour is { } ch ? Ui.Eur(ch) + "/h" : "—")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Matriz de permissões</h3><span class="sub">Por papel</span></div></div>
+                    <table class="tbl">
+                        <thead><tr><th>Capacidade</th>@foreach (var r in roleNames) { <th style="text-align:center;">@r</th> }</tr></thead>
+                        <tbody>
+                        @foreach (var (cap, vals) in perms)
+                        {
+                            <tr><td style="font-weight:600;">@cap</td>
+                            @foreach (var v in vals)
+                            {
+                                <td style="text-align:center;">@if (v == 1) { <span style="color:var(--success);">@Icons.Render("check", 16)</span> } else if (v == 2) { <span class="muted-3" style="font-size:11px;font-weight:700;">Parcial</span> } else { <span class="muted-3">—</span> }</td>
+                            }
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (section == "lookups")
+            {
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Listas & lookups</h3><span class="sub">Fases, prioridades e estados usados nos formulários</span></div></div>
+                    <form asp-action="AddLookup" method="post" style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+                        <div class="fld__box" style="height:44px;min-width:170px;"><select name="kind" style="@sel()"><option value="fase">Fases</option><option value="prioridade">Prioridades</option><option value="tipo">Tipos de hora</option><option value="categoria-risco">Categorias de risco</option></select></div>
+                        <div class="fld__box" style="height:44px;flex:1;min-width:200px;"><input name="value" placeholder="Novo valor…" required /></div>
+                        <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Adicionar</button>
+                    </form>
+                    @if (lookups.Count == 0)
+                    {
+                        <div class="muted" style="font-size:13px;font-weight:600;">Ainda sem valores personalizados — os formulários usam as listas standard. Adiciona acima para personalizar.</div>
+                    }
+                    else
+                    {
+                        @foreach (var g in lookups.GroupBy(l => l.Kind))
+                        {
+                            <div class="nav-label" style="padding:12px 0 6px;">@g.Key</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                @foreach (var l in g)
+                                {
+                                    <span class="chip" style="display:inline-flex;align-items:center;gap:7px;">@l.Value
+                                        <form asp-action="DeleteLookup" asp-route-id="@l.Id" method="post" style="display:inline;margin:0;"><button type="submit" style="border:none;background:transparent;color:var(--danger);cursor:pointer;display:grid;">@Icons.Render("x", 12)</button></form>
+                                    </span>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Notificações</h3><span class="sub">Email, SMS e portal do cliente</span></div></div>
+                    <table class="tbl">
+                        <thead><tr><th>Evento</th><th style="text-align:center;">Email</th><th style="text-align:center;">SMS</th><th style="text-align:center;">Portal</th></tr></thead>
+                        <tbody>
+                        @foreach (var (ev, em, sm, po) in notifs)
+                        {
+                            <tr>
+                                <td style="font-weight:600;">@ev</td>
+                                <td style="text-align:center;"><input type="checkbox" checked="@em" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
+                                <td style="text-align:center;"><input type="checkbox" checked="@sm" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
+                                <td style="text-align:center;"><input type="checkbox" checked="@po" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:12px;">As preferências de envio entram em vigor com a integração de email/SMS (Fase 3).</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
