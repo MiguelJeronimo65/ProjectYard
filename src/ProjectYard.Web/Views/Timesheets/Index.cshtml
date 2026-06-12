@@ -1,36 +1,203 @@
-@model List<TimeEntry>
+@model TimesheetViewModel
 @{
     ViewData["Title"] = "Registo de horas";
-    var total = Model.Sum(e => e.Hours);
+    var dayNames = new[] { "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom" };
+    var weekend = new[] { 5, 6 };
+    string GridCols = "minmax(230px, 2.2fr) repeat(7, minmax(54px, 1fr)) 92px";
+    string FmtH(decimal n) => n == 0 ? "" : n.ToString("0.##", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    var prevW = Model.Monday.AddDays(-7).ToString("yyyy-MM-dd");
+    var nextW = Model.Monday.AddDays(7).ToString("yyyy-MM-dd");
+    var ptMon = new[] { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
+    var range = $"{Model.Days[0].Day} – {Model.Days[6].Day} {ptMon[Model.Days[6].Month - 1]} {Model.Days[6].Year}";
+    int missing = 5 - Model.DaysFilled;
 }
 <div class="content">
     <div class="page-head">
-        <div><h1>Registo de horas</h1><p>@Model.Count registos · @Ui.Num(total) h no total.</p></div>
-        <div class="page-head__actions"><a class="btn btn-primary" asp-action="Create">@Icons.Render("plus", 17) Registar horas</a></div>
+        <div>
+            <h1>Registo de horas</h1>
+            <p>Horas por projeto e fase · custo de produção e utilização da equipa</p>
+        </div>
+        <div class="page-head__actions">
+            <button class="btn btn-ghost" type="button">@Icons.Render("download", 16) Exportar</button>
+            <button class="btn btn-gold" type="button" onclick="document.getElementById('addRowOv').style.display='grid'">@Icons.Render("plus", 15) Adicionar registo</button>
+        </div>
     </div>
-    <div class="card">
-        <table class="tbl">
-            <thead><tr><th>Data</th><th>Colaborador</th><th>Projeto</th><th>Tipo</th><th>Descrição</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Custo</th><th>Faturável</th><th></th></tr></thead>
-            <tbody>
-            @foreach (var e in Model)
+
+    @* KPIs *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("clock", 23)</div></div>
+            <div><div class="stat__val">@FmtH(Model.Logged)@(Model.Logged == 0 ? "0" : "")h</div><div class="stat__label">Registadas esta semana</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Objetivo 40h · @Model.Util% de utilização</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--success-soft);color:var(--success);">@Icons.Render("euro", 23)</div>@if (Model.Logged > 0) { <span class="trend up">@Icons.Render("arrowUp", 13) @((int)Math.Round(Model.Billable / Model.Logged * 100))%</span> }</div>
+            <div><div class="stat__val">@FmtH(Model.Billable)@(Model.Billable == 0 ? "0" : "")h</div><div class="stat__label">Horas faturáveis</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@FmtH(Model.Logged - Model.Billable)@(Model.Logged - Model.Billable == 0 ? "0" : "")h não faturáveis</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--info-soft);color:var(--info);">@Icons.Render("card", 23)</div></div>
+            <div><div class="stat__val">€@Math.Round(Model.Cost).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))</div><div class="stat__label">Custo de produção</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@FmtH(Model.Rate) €/h · @Model.UserFirstName</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("trend", 23)</div></div>
+            <div><div class="stat__val">@Model.Util%</div><div class="stat__label">Utilização</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">Capacidade semanal 40h</div>
+        </div>
+    </div>
+
+    @* Navegador de semana *@
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:4px;">
+            <a class="icon-btn" style="width:38px;height:38px;" href="@Url.Action("Index", new { w = prevW })">@Icons.Render("chevL", 17)</a>
+            <div style="text-align:center;min-width:150px;">
+                <div class="num" style="font-weight:700;font-size:15.5px;">@range</div>
+                <div class="muted-3" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">@(Model.IsCurrentWeek ? "Semana atual" : "Outra semana")</div>
+            </div>
+            <a class="icon-btn" style="width:38px;height:38px;" href="@Url.Action("Index", new { w = nextW })">@Icons.Render("chevR", 17)</a>
+            @if (!Model.IsCurrentWeek)
             {
-                <tr>
-                    <td>@Ui.Date(e.EntryDate)</td>
-                    <td style="font-weight:600;">@(e.User?.Name ?? "—")</td>
-                    <td>@(e.Project?.Code ?? "Interno")</td>
-                    <td>@(e.Type ?? "—")</td>
-                    <td class="muted">@(e.Description ?? "—")</td>
-                    <td class="num" style="text-align:right;font-weight:700;">@Ui.Num(e.Hours)</td>
-                    <td class="num" style="text-align:right;">@Ui.Eur(e.Cost)</td>
-                    <td>@if (e.Billable == true) { <span class="badge b-green">Sim</span> } else { <span class="badge b-gray">Não</span> }</td>
-                    <td style="text-align:right;">
-                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" onsubmit="return confirm('Eliminar este registo?');">
-                            <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger);">Eliminar</button>
-                        </form>
-                    </td>
-                </tr>
+                <a class="chip" style="margin-left:6px;" href="@Url.Action("Index")">Esta semana</a>
             }
-            </tbody>
-        </table>
+        </div>
+    </div>
+
+    @* Banner *@
+    @if (Model.Rows.Count > 0)
+    {
+        <div class="card card-pad" style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+            <div style="width:38px;height:38px;border-radius:10px;background:var(--accent-soft);color:var(--accent-700);display:grid;place-items:center;flex-shrink:0;">@Icons.Render("clock", 20)</div>
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:9px;"><span style="font-weight:700;font-size:14.5px;">Rascunho</span><span class="badge b-amber">Por submeter</span></div>
+                <div class="muted" style="font-size:13px;font-weight:600;">@(missing > 0 ? $"{missing} dia{(missing > 1 ? "s" : "")} úteis ainda por validar." : "Todos os dias úteis preenchidos.") Submeta para aprovação do gestor.</div>
+            </div>
+            <button class="btn btn-primary btn-sm" type="button">@Icons.Render("check", 14) Submeter semana</button>
+        </div>
+    }
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="card"><div class="empty" style="padding:60px 20px;">
+            <div style="width:64px;height:64px;border-radius:16px;background:var(--surface-2);display:grid;place-items:center;margin:0 auto 14px;color:var(--text-3);">@Icons.Render("clock", 30)</div>
+            <div style="font-weight:700;font-size:15px;color:var(--text-2);">Sem registos nesta semana</div>
+            <div style="margin-top:4px;">Adiciona uma linha de projeto/fase para começar a registar horas.</div>
+            <button class="btn btn-soft btn-sm" style="margin-top:16px;" type="button" onclick="document.getElementById('addRowOv').style.display='grid'">@Icons.Render("plus", 14) Adicionar registo</button>
+        </div></div>
+    }
+    else
+    {
+        <div class="card" style="overflow:hidden;">
+            @* Cabeçalho *@
+            <div class="ts-gridrow" style="grid-template-columns:@GridCols;background:var(--surface-2);">
+                <div style="padding:14px 18px;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);">Projeto · Fase</div>
+                @for (int i = 0; i < 7; i++)
+                {
+                    var we = weekend.Contains(i); var td = i == Model.TodayIdx;
+                    <div class="ts-day @(we ? "ts-daycol-weekend" : "") @(td ? "ts-daycol-today" : "")" style="padding:10px 2px;text-align:center;">
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:@(td ? "var(--accent-700)" : "var(--text-3)");">@dayNames[i]</div>
+                        <div class="num" style="font-size:15px;font-weight:700;color:@(td ? "var(--accent-700)" : we ? "var(--text-3)" : "var(--text)");">@Model.Days[i].Day</div>
+                    </div>
+                }
+                <div style="padding:14px 12px;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);text-align:right;">Total</div>
+            </div>
+
+            @* Linhas *@
+            @foreach (var r in Model.Rows)
+            {
+                var rowTotal = r.Hours.Sum();
+                <div class="ts-gridrow" style="grid-template-columns:@GridCols;">
+                    <div style="padding:10px 18px;display:flex;align-items:center;gap:11px;min-width:0;">
+                        <span style="width:4px;height:32px;border-radius:4px;background:@Components.Color(r.ProjectCode);flex-shrink:0;"></span>
+                        <div style="min-width:0;">
+                            <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@r.ProjectName</div>
+                            <div class="muted-3" style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+                                @if (r.ProjectCode != "—") { <span class="num">@r.ProjectCode</span> }
+                                <span>@(string.IsNullOrEmpty(r.Phase) ? r.Tipo : r.Phase)</span>
+                                @if (!r.IsBillable) { <span class="badge b-gray" style="padding:1px 7px;font-size:10px;">Não faturável</span> }
+                            </div>
+                        </div>
+                    </div>
+                    @for (int ci = 0; ci < 7; ci++)
+                    {
+                        var we = weekend.Contains(ci); var td = ci == Model.TodayIdx;
+                        <div class="ts-day @(we ? "ts-daycol-weekend" : "") @(td ? "ts-daycol-today" : "")">
+                            <input class="ts-cell" inputmode="decimal" placeholder="·" value="@FmtH(r.Hours[ci])"
+                                   data-project="@r.ProjectId" data-phase="@r.Phase" data-tipo="@r.Tipo" data-billable="@r.IsBillable.ToString().ToLower()" data-date="@Model.Days[ci].ToString("yyyy-MM-dd")" />
+                        </div>
+                    }
+                    <div style="padding:10px 12px;display:grid;place-items:center end;">
+                        <span class="num" style="font-weight:700;font-size:15px;color:@(rowTotal > 0 ? "var(--text)" : "var(--text-3)");">@(rowTotal > 0 ? FmtH(rowTotal) + "h" : "—")</span>
+                    </div>
+                </div>
+            }
+
+            @* Adicionar linha *@
+            <div class="ts-gridrow" style="grid-template-columns:1fr;border-top:1px solid var(--border);">
+                <button class="btn btn-soft btn-sm" type="button" style="margin:12px;width:fit-content;" onclick="document.getElementById('addRowOv').style.display='grid'">@Icons.Render("plus", 14) Adicionar projeto / fase</button>
+            </div>
+
+            @* Totais diários *@
+            <div class="ts-gridrow" style="grid-template-columns:@GridCols;background:var(--navy);color:#fff;">
+                <div style="padding:14px 18px;font-weight:700;font-size:13.5px;">Total diário</div>
+                @for (int i = 0; i < 7; i++)
+                {
+                    var t = Model.DayTotal(i); var we = weekend.Contains(i);
+                    <div class="num" style="padding:14px 2px;text-align:center;font-weight:700;font-size:15px;color:@(we ? "rgba(255,255,255,.4)" : t > 8 ? "var(--accent)" : "#fff");border-left:1px solid rgba(255,255,255,.1);">@(t > 0 ? FmtH(t) : "–")</div>
+                }
+                <div class="num" style="padding:14px 12px;text-align:right;font-weight:800;font-size:16px;color:var(--accent);">@FmtH(Model.Logged)@(Model.Logged == 0 ? "0" : "")h</div>
+            </div>
+        </div>
+    }
+</div>
+
+@* ===== Modal Adicionar linha ===== *@
+<div class="modal-overlay" id="addRowOv" style="display:none;" onmousedown="if(event.target===this)this.style.display='none'">
+    <div class="modal-card" style="width:480px;">
+        <div class="modal-head">
+            <div><h3>Adicionar projeto / fase</h3><p>Semana @range</p></div>
+            <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="document.getElementById('addRowOv').style.display='none'">@Icons.Render("x", 18)</button>
+        </div>
+        <form asp-action="AddRow" method="post">
+            <div class="modal-body">
+                <input type="hidden" name="monday" value="@Model.Monday.ToString("yyyy-MM-dd")" />
+                <div class="fld"><label>Projeto</label><div class="fld__box" style="height:46px;"><select name="projectId" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);"><option value="">— Interno —</option>@foreach (var p in Model.Projects) { <option value="@p.Id">@p.Code — @p.Name</option> }</select></div></div>
+                <div class="fld"><label>Fase / descrição</label><div class="fld__box" style="height:46px;"><input name="phase" placeholder="Ex.: Projeto de Execução" /></div></div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Tipo</label><div class="fld__box" style="height:46px;"><select name="tipo" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);">@foreach (var t in new[] { "Produção", "Coordenação", "Licenciamento", "Assistência", "Reunião", "Gestão" }) { <option>@t</option> }</select></div></div>
+                    <div class="fld" style="flex:1;"><label>Faturável</label><div class="fld__box" style="height:46px;"><select name="billable" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);"><option value="true">Sim</option><option value="false">Não</option></select></div></div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" type="button" onclick="document.getElementById('addRowOv').style.display='none'">Cancelar</button>
+                <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Adicionar</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<form id="afForm">@Html.AntiForgeryToken()</form>
+
+<script>
+    // Edição inline: blur/Enter grava a célula (upsert na BD) e atualiza totais ao recarregar.
+    document.querySelectorAll('.ts-cell').forEach(inp => {
+        inp.dataset.orig = inp.value;
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+        inp.addEventListener('blur', async () => {
+            if (inp.value === inp.dataset.orig) return;
+            var n = parseFloat((inp.value || '0').replace(',', '.'));
+            if (isNaN(n) || n < 0) { inp.value = inp.dataset.orig; return; }
+            var token = document.querySelector('#afForm input[name="__RequestVerificationToken"]').value;
+            var res = await fetch('@Url.Action("SetCell")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    projectId: inp.dataset.project || '', phase: inp.dataset.phase || '', tipo: inp.dataset.tipo || '',
+                    billable: inp.dataset.billable, date: inp.dataset.date, hours: n,
+                    __RequestVerificationToken: token,
+                }),
+            });
+            if (res.ok) location.reload(); else inp.value = inp.dataset.orig;
+        });
+    });
+</script>
