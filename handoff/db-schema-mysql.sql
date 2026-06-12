@@ -153,6 +153,8 @@ CREATE TABLE clients (
   city        VARCHAR(120) NULL,
   stage       VARCHAR(40)  NULL,                     -- funil CRM
   status      ENUM('Lead','Ativo','Em risco','Concluído') NOT NULL DEFAULT 'Lead',
+  last_activity    VARCHAR(200) NULL,                -- última atividade (ex.: "Aprovou Arquitetura")
+  last_activity_at DATETIME NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_client_tenant (tenant_id),
   CONSTRAINT fk_client_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
@@ -257,12 +259,36 @@ CREATE TABLE tasks (
   assignee_id BIGINT NULL,
   due_date    DATE NULL,
   overdue     TINYINT(1) NOT NULL DEFAULT 0,
+  tags        VARCHAR(200) NULL,                     -- etiquetas separadas por vírgula (ex.: "Topografia,Materiais")
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_task_project (project_id),
   CONSTRAINT fk_task_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_task_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_task_phase   FOREIGN KEY (phase_id)   REFERENCES project_phases(id),
   CONSTRAINT fk_task_user    FOREIGN KEY (assignee_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Checklist do cartão Kanban (protótipo: "3/5" com barra de progresso)
+CREATE TABLE task_checklist_items (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  task_id    BIGINT NOT NULL,
+  title      VARCHAR(220) NOT NULL,
+  done       TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  KEY ix_tci_task (task_id),
+  CONSTRAINT fk_tci_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Comentários de tarefa (contador no cartão Kanban)
+CREATE TABLE task_comments (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  task_id    BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_tc_task (task_id),
+  CONSTRAINT fk_tc_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tc_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================ REGISTO DE HORAS
@@ -307,6 +333,22 @@ CREATE TABLE deliverables (
   CONSTRAINT fk_deliv_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_deliv_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_deliv_owner   FOREIGN KEY (owner_id)   REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Histórico de versões do entregável (protótipo: secção "Histórico de versões" v1/v2…)
+CREATE TABLE deliverable_versions (
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  deliverable_id BIGINT NOT NULL,
+  version        VARCHAR(12) NOT NULL,               -- v1, v2…
+  status         VARCHAR(40) NULL,                   -- ex.: Aprovado, Precisa revisão
+  note           VARCHAR(255) NULL,
+  document_id    BIGINT NULL,                        -- ficheiro associado à versão
+  created_by     BIGINT NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_dv_deliv (deliverable_id),
+  CONSTRAINT fk_dv_deliv FOREIGN KEY (deliverable_id) REFERENCES deliverables(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dv_doc   FOREIGN KEY (document_id)    REFERENCES documents(id),
+  CONSTRAINT fk_dv_user  FOREIGN KEY (created_by)     REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE documents (
@@ -375,6 +417,8 @@ CREATE TABLE approvals (
   priority     ENUM('Alta','Média','Baixa') NOT NULL DEFAULT 'Média',
   status       ENUM('Aberta','Aprovada','Devolvida') NOT NULL DEFAULT 'Aberta',
   note         TEXT NULL,
+  return_reason VARCHAR(160) NULL,                   -- motivo da devolução (dropdown do protótipo)
+  decided_at   DATETIME NULL,                        -- data da decisão (KPI "Aprovadas (semana)")
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_appr_tenant (tenant_id),
   CONSTRAINT fk_appr_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
@@ -497,11 +541,37 @@ CREATE TABLE sms_messages (
   phone       VARCHAR(40) NOT NULL,
   body        VARCHAR(480) NOT NULL,
   is_auto     TINYINT(1) NOT NULL DEFAULT 0,
+  read_at     DATETIME NULL,                         -- inbound: badge de não-lidas na lista de threads
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_sms_tenant (tenant_id),
   CONSTRAINT fk_sms_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_sms_client  FOREIGN KEY (client_id)  REFERENCES clients(id),
   CONSTRAINT fk_sms_project FOREIGN KEY (project_id) REFERENCES projects(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================ CALENDÁRIO
+
+-- Eventos manuais do calendário (reuniões, visitas de obra, pessoal).
+-- Prazos, entregáveis, faturação e aprovações continuam a ser derivados das tabelas respetivas.
+CREATE TABLE events (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT NOT NULL,
+  project_id    BIGINT NULL,
+  category      VARCHAR(40) NOT NULL,                -- 'reuniao' | 'obra' | 'pessoal' (gerível via lookups)
+  title         VARCHAR(220) NOT NULL,
+  event_date    DATE NOT NULL,
+  start_time    TIME NULL,
+  end_time      TIME NULL,
+  location      VARCHAR(200) NULL,
+  notes         VARCHAR(255) NULL,
+  owner_user_id BIGINT NULL,                         -- responsável/participante principal
+  created_by    BIGINT NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_event_tenant_date (tenant_id, event_date),
+  CONSTRAINT fk_event_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_event_project FOREIGN KEY (project_id)    REFERENCES projects(id),
+  CONSTRAINT fk_event_owner   FOREIGN KEY (owner_user_id) REFERENCES users(id),
+  CONSTRAINT fk_event_creator FOREIGN KEY (created_by)    REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================ CONFIGURAÇÃO
