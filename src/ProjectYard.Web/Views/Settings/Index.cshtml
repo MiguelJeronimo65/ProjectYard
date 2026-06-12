@@ -2,10 +2,20 @@
 @{
     ViewData["Title"] = "Definições";
     var me = (ApplicationUser)ViewBag.Me;
+    bool isAdmin = ViewBag.IsAdmin;
     string section = ViewBag.Section;
     var tenant = (Tenant?)ViewBag.Tenant;
     var team = (List<ApplicationUser>)ViewBag.Team;
+    var smsInvites = (List<UserInvite>)ViewBag.SmsInvites;
     var lookups = (List<Lookup>)ViewBag.Lookups;
+    var prm = (Dictionary<string, string>)ViewBag.Params;
+    int usageProjects = ViewBag.UsageProjects;
+    int usageUsers = ViewBag.UsageUsers;
+    long usageBytes = ViewBag.UsageBytes;
+
+    string P(string key, string fallback = "") => prm.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v) ? v : fallback;
+    string UP(string suffix, string fallback = "") => P($"user.{me.Id}.{suffix}", fallback);
+
     var sections = new[]
     {
         ("conta", "Conta", "user", "Perfil e workspace"),
@@ -14,197 +24,802 @@
         ("equipa", "Equipa & permissões", "users", "Membros e papéis"),
         ("lookups", "Listas & lookups", "layers", "Fases, prioridades, estados"),
         ("notificacoes", "Notificações", "bell", "Email, SMS e portal"),
+        ("integracoes", "Integrações", "layers", "Apps e serviços"),
     };
-    var plans = new[]
+
+    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14.5px;font-weight:600;color:var(--text);appearance:none;cursor:pointer;padding:13px 0;";
+
+    string Rel(DateTime? d)
     {
-        ("Starter", "29", "Freelancers e ateliers pequenos", new[] { "3 projetos ativos", "1 utilizador", "5 GB de armazenamento", "Suporte por email" }),
-        ("Pro", "89", "Ateliers em crescimento", new[] { "Projetos ilimitados", "Até 15 utilizadores", "100 GB de armazenamento", "SMS, Aprovações e Portal", "Integrações BIM" }),
-        ("Enterprise", "Sob consulta", "Grandes gabinetes", new[] { "Tudo do plano Pro", "Utilizadores ilimitados", "Armazenamento dedicado", "SSO e SLA dedicado", "Gestor de conta" }),
-    };
-    var notifs = new[]
-    {
-        ("Tarefa atribuída a mim", true, false, true), ("Comentário ou menção", true, false, true),
-        ("Entregável submetido", true, false, true), ("Pedido de aprovação", true, true, true),
-        ("Aprovação concluída", true, true, false), ("Nova fatura ou pagamento", true, false, true),
-        ("Risco aberto ou agravado", true, true, false), ("Resumo diário do workspace", false, false, true),
-    };
+        if (d is null) return "—";
+        var diff = DateTime.Now - d.Value;
+        if (diff.TotalMinutes < 2) return "Agora";
+        if (diff.TotalMinutes < 60) return $"há {(int)diff.TotalMinutes} min";
+        if (diff.TotalHours < 2) return "há 1 hora";
+        if (diff.TotalHours < 24) return $"há {(int)diff.TotalHours} horas";
+        if (d.Value.Date == DateTime.Today.AddDays(-1)) return "ontem";
+        if (diff.TotalDays < 7) return $"há {(int)diff.TotalDays} dias";
+        if (diff.TotalDays < 14) return "há 1 semana";
+        if (diff.TotalDays < 31) return $"há {(int)(diff.TotalDays / 7)} semanas";
+        return d.Value.ToString("dd MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    }
+
+    string RoleTag(string r) => r == "Superadmin" ? "b-navy" : r is "Administrador" or "Owner" ? "b-gold" : r == "Gestor" ? "b-violet" : r == "Cliente" ? "b-blue" : "b-gray";
+
+    // sessão atual (real, derivada do pedido)
+    var ua = Context.Request.Headers.UserAgent.ToString();
+    string browser = ua.Contains("Edg") ? "Edge" : ua.Contains("Firefox") ? "Firefox" : ua.Contains("Chrome") ? "Chrome" : ua.Contains("Safari") ? "Safari" : "Browser";
+    string os = ua.Contains("Windows") ? "Windows" : ua.Contains("iPhone") ? "iPhone" : ua.Contains("Mac") ? "macOS" : ua.Contains("Android") ? "Android" : ua.Contains("Linux") ? "Linux" : "Dispositivo";
+    var ipRaw = Context.Connection.RemoteIpAddress?.ToString() ?? "—";
+    var ipParts = ipRaw.Split('.');
+    string ip = ipParts.Length == 4 ? $"{ipParts[0]}.{ipParts[1]}.{ipParts[2]}.x" : ipRaw;
+
+    // plano
+    string planName = tenant?.Plan ?? "Pro";
+    string planPrice = planName == "Starter" ? "29" : planName == "Enterprise" ? "Sob consulta" : "89";
+    int trialDays = tenant?.TrialEndsAt is { } te ? Math.Max(0, te.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber) : 0;
+    string renewal = (tenant?.TrialEndsAt ?? DateOnly.FromDateTime(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1)))
+        .ToString("dd MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+
+    double gbUsed = usageBytes / 1_000_000_000.0;
+    int seatPct = (int)Math.Round(Math.Min(usageUsers, 15) / 15.0 * 100);
+    int gbPct = (int)Math.Round(Math.Min(gbUsed, 100) / 100.0 * 100);
+
+    var palette = new[] { "#6a5af9", "#2a7fb8", "#1f9d6b", "#d9a32a", "#e8526b", "#9b59f5", "#21a8c4", "#ef7d54", "#e0922a", "#d65151", "#8a949e", "#233140" };
+
+    var permRoles = new[] { "Superadmin", "Administrador", "Gestor", "Membro", "Cliente" };
     var perms = new (string cap, int[] vals)[]
     {
         ("Ver projetos e tarefas", new[] { 1, 1, 1, 1, 2 }), ("Criar e editar projetos", new[] { 1, 1, 1, 0, 0 }),
         ("Gerir tarefas e cronograma", new[] { 1, 1, 1, 1, 0 }), ("Aprovar entregáveis", new[] { 1, 1, 1, 0, 0 }),
         ("Faturação e pagamentos", new[] { 1, 1, 0, 0, 0 }), ("Enviar SMS a clientes", new[] { 1, 1, 1, 0, 0 }),
         ("Gerir equipa e permissões", new[] { 1, 1, 0, 0, 0 }), ("Gerir faturação do workspace", new[] { 1, 0, 0, 0, 0 }),
+        ("Aceder ao portal do cliente", new[] { 1, 1, 1, 0, 1 }),
     };
-    var roleNames = new[] { "Superadmin", "Administrador", "Gestor", "Membro", "Cliente" };
-    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);";
+
+    var notifEvents = new[]
+    {
+        "Tarefa atribuída a mim", "Comentário ou menção", "Entregável submetido", "Pedido de aprovação",
+        "Aprovação concluída", "Nova fatura ou pagamento", "Risco aberto ou agravado", "Resumo diário do workspace",
+    };
+    const string notifDefaults = "101|101|101|111|110|101|110|001";
+    var notifState = UP("notifs", notifDefaults).Split('|');
+
+    var integrations = new (string Name, string Cat, string Mono, string Color, string Desc)[]
+    {
+        ("Google Calendar", "Calendário", "GC", "#2a7fb8", "Sincroniza prazos e marcos com a tua agenda."),
+        ("Microsoft 365", "Email & ficheiros", "M", "#d65151", "Outlook, calendário e documentos partilhados."),
+        ("Autodesk Cloud", "BIM / CAD", "A", "#e0922a", "Modelos BIM e ficheiros Revit e AutoCAD."),
+        ("Twilio SMS", "Comunicação", "Tw", "#d65151", "Envio de SMS e aprovações por mensagem."),
+        ("Dropbox", "Armazenamento", "Db", "#2a7fb8", "Guarda e versiona documentos do projeto."),
+        ("Stripe", "Pagamentos", "S", "#6a5af9", "Pagamentos online e referências Multibanco."),
+        ("Slack", "Comunicação", "Sl", "#9b59f5", "Notificações da equipa em canais dedicados."),
+        ("Zapier", "Automação", "Z", "#e0922a", "Liga o ProjectYard a mais de 5000 apps."),
+    };
+    var integrOn = P("tenant.integr", "Google Calendar,Microsoft 365,Autodesk Cloud,Twilio SMS")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+
+    var subInvoices = new[]
+    {
+        ("PY-INV-0042", "01 Jun 2026", "Plano Pro · Mensal", "89,00 €"),
+        ("PY-INV-0039", "01 Mai 2026", "Plano Pro · Mensal", "89,00 €"),
+        ("PY-INV-0036", "01 Abr 2026", "Plano Pro · Mensal", "89,00 €"),
+        ("PY-INV-0033", "01 Mar 2026", "Plano Pro · Mensal", "89,00 €"),
+    };
+
+    var apiKey = P("tenant.apikey");
+    string apiKeyMasked = apiKey.Length > 14 ? apiKey[..12] + "••••••••••••" + apiKey[^4..] : "— ainda não gerada —";
 }
 <div class="content">
-    <div class="page-head"><div><h1>Definições</h1><p>Conta, segurança, plano, equipa e listas do workspace</p></div></div>
+    <div class="page-head"><div><h1>Definições</h1><p>Gere a tua conta, equipa, plano e integrações do workspace</p></div></div>
 
-    <div class="grid" style="grid-template-columns:264px 1fr;align-items:start;">
-        @* rail *@
-        <div class="card" style="overflow:hidden;">
+    <form id="afForm" style="display:none;">@Html.AntiForgeryToken()</form>
+
+    <div class="grid" style="grid-template-columns:244px 1fr;gap:24px;align-items:start;">
+        @* ===== rail ===== *@
+        <div class="card" style="padding:8px;position:sticky;top:90px;">
             @foreach (var (id, label, icon, desc) in sections)
             {
                 var on = section == id;
-                <a href="@Url.Action("Index", new { s = id })" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
-                    <div style="width:36px;height:36px;border-radius:10px;background:@(on ? "var(--accent)" : "var(--surface-2)");color:@(on ? "var(--navy-700)" : "var(--text-2)");display:grid;place-items:center;flex-shrink:0;">@Icons.Render(icon, 17)</div>
-                    <div><div style="font-weight:700;font-size:13.5px;">@label</div><div class="muted-3" style="font-size:11.5px;font-weight:600;">@desc</div></div>
+                <a class="set-nav @(on ? "active" : "")" href="@Url.Action("Index", new { s = id })" style="text-decoration:none;">
+                    @Icons.Render(icon, 18)
+                    <div style="min-width:0;">
+                        <div style="line-height:1.2;">@label</div>
+                        <div style="font-size:11.5px;font-weight:600;color:@(on ? "var(--accent-700)" : "var(--text-3)");opacity:.85;">@desc</div>
+                    </div>
                 </a>
             }
         </div>
 
-        @* conteúdo *@
-        <div class="grid" style="gap:20px;">
-            @if (section == "conta")
-            {
-                <div class="card card-pad">
-                    <div class="card-h"><div><h3>Perfil</h3><span class="sub">Como apareces no workspace</span></div></div>
-                    <form asp-action="UpdateProfile" method="post" style="max-width:540px;">
-                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
-                            @Components.Avatar(me.Name, 56)
-                            <div><div style="font-weight:700;font-size:15px;">@me.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">@me.Email · @me.Role</div></div>
-                        </div>
-                        <div class="fld"><label>Nome</label><div class="fld__box" style="height:46px;"><input name="name" value="@me.Name" required /></div></div>
-                        <div class="fld"><label>Cargo</label><div class="fld__box" style="height:46px;"><input name="funcao" value="@me.Funcao" placeholder="Ex.: Arquiteto Sénior" /></div></div>
-                        <button class="btn btn-primary" type="submit">Guardar alterações</button>
-                    </form>
-                </div>
-                @if (tenant != null)
-                {
-                    <div class="card card-pad">
-                        <div class="card-h"><div><h3>Workspace</h3></div></div>
-                        <div style="display:flex;align-items:center;gap:14px;">
-                            <span class="avatar sq" style="width:48px;height:48px;background:@(tenant.PrimaryColor ?? "#2c3e51");font-size:17px;">@Components.Initials(tenant.Name)</span>
-                            <div><div style="font-weight:700;font-size:15px;">@tenant.Name</div><div class="muted-3" style="font-size:12.5px;font-weight:600;">projectyard.app/@tenant.Slug · Plano @tenant.Plan</div></div>
-                            <span class="badge @Ui.TenantStatus(tenant.Status)" style="margin-left:auto;">@tenant.Status</span>
+        <div class="grid rise" style="gap:20px;">
+        @* ===================== CONTA ===================== *@
+        @if (section == "conta")
+        {
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Perfil pessoal</h3><span class="sub" style="display:block;margin-top:3px;">A tua informação dentro do workspace</span></div></div>
+                <form asp-action="UpdateProfile" method="post">
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+                        @Components.Avatar(me.Name, 66)
+                        <div style="display:flex;gap:9px;">
+                            <button class="btn btn-soft btn-sm" type="button" onclick="PYToast && PYToast('Upload de foto — disponível em breve')">@Icons.Render("arrowUp", 14) Mudar foto</button>
+                            <button class="btn btn-ghost btn-sm" type="button" style="color:var(--text-3);">Remover</button>
                         </div>
                     </div>
-                }
-            }
-            else if (section == "seguranca")
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+                        <div class="fld" style="margin-bottom:0;"><label>Nome</label><div class="fld__box"><input name="name" value="@me.Name" required /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Cargo</label><div class="fld__box"><input name="funcao" value="@me.Funcao" placeholder="Ex.: Arquiteto Sénior" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Email</label><div class="fld__box">@Icons.Render("mail", 16)<input name="email" type="email" value="@me.Email" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Telefone</label><div class="fld__box"><input name="phone" value="@me.PhoneNumber" placeholder="+351 …" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Idioma</label><div class="fld__box">
+                            <select name="locale" style="@sel()">@foreach (var o in new[] { "Português (PT)", "English", "Español" }) { <option selected="@(UP("locale", "Português (PT)") == o)">@o</option> }</select>@Icons.Render("chevD", 16)
+                        </div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Fuso horário</label><div class="fld__box">
+                            <select name="tz" style="@sel()">@foreach (var o in new[] { "(GMT+00:00) Lisboa", "(GMT+01:00) Madrid", "(GMT+00:00) Londres" }) { <option selected="@(UP("tz", "(GMT+00:00) Lisboa") == o)">@o</option> }</select>@Icons.Render("chevD", 16)
+                        </div></div>
+                    </div>
+                    <div class="divider"></div>
+                    <div style="display:flex;gap:9px;justify-content:flex-end;">
+                        <button class="btn btn-ghost" type="reset">Cancelar</button>
+                        <button class="btn btn-primary" type="submit">Guardar alterações</button>
+                    </div>
+                </form>
+            </div>
+
+            @if (tenant != null)
             {
                 <div class="card card-pad">
-                    <div class="card-h"><div><h3>Alterar palavra-passe</h3><span class="sub">Mínimo 6 caracteres, com maiúscula e dígito</span></div></div>
-                    <form asp-action="ChangePassword" method="post" style="max-width:440px;">
-                        <div class="fld"><label>Palavra-passe atual</label><div class="fld__box" style="height:46px;"><input name="current" type="password" required autocomplete="current-password" /></div></div>
-                        <div class="fld"><label>Nova palavra-passe</label><div class="fld__box" style="height:46px;"><input name="nova" type="password" required autocomplete="new-password" /></div></div>
-                        <div class="fld"><label>Confirmar nova palavra-passe</label><div class="fld__box" style="height:46px;"><input name="confirmar" type="password" required autocomplete="new-password" /></div></div>
-                        <button class="btn btn-primary" type="submit">@Icons.Render("lock", 15) Alterar palavra-passe</button>
+                    <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Dados do workspace</h3><span class="sub" style="display:block;margin-top:3px;">Identidade do gabinete usada em propostas e faturas</span></div></div>
+                    <form asp-action="UpdateWorkspace" method="post">
+                        <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+                            <span class="avatar sq" style="width:60px;height:60px;border-radius:14px;background:@(tenant.PrimaryColor ?? "#2c3e51");font-size:20px;">@Components.Initials(tenant.Name)</span>
+                            <div>
+                                <div style="font-weight:700;font-size:15px;">@tenant.Name</div>
+                                <div class="muted-3" style="font-size:12.5px;font-weight:600;">Logótipo apresentado a clientes · PNG ou SVG</div>
+                                <button class="btn btn-soft btn-sm" type="button" style="margin-top:9px;" onclick="PYToast && PYToast('Upload de logótipo — disponível em breve')">@Icons.Render("arrowUp", 14) Carregar logótipo</button>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+                            <div class="fld" style="margin-bottom:0;"><label>Nome do gabinete</label><div class="fld__box"><input name="name" value="@tenant.Name" required disabled="@(!isAdmin)" /></div></div>
+                            <div class="fld" style="margin-bottom:0;"><label>NIF</label><div class="fld__box"><input name="nif" value="@P("tenant.nif")" placeholder="509 482 117" disabled="@(!isAdmin)" /></div></div>
+                            <div class="fld" style="margin-bottom:0;"><label>Morada</label><div class="fld__box"><input name="morada" value="@P("tenant.morada")" placeholder="Rua, n.º, cidade" disabled="@(!isAdmin)" /></div></div>
+                            <div class="fld" style="margin-bottom:0;"><label>Website</label><div class="fld__box">@Icons.Render("grid", 16)<input name="website" value="@P("tenant.website")" placeholder="@(tenant.Slug).pt" disabled="@(!isAdmin)" /></div></div>
+                            <div class="fld" style="margin-bottom:0;"><label>Área de atividade</label><div class="fld__box">
+                                <select name="area" style="@sel()" disabled="@(!isAdmin)">@foreach (var o in new[] { "Arquitetura", "Engenharia", "Arquitetura + Engenharia", "Construção" }) { <option selected="@(P("tenant.area", "Arquitetura + Engenharia") == o)">@o</option> }</select>@Icons.Render("chevD", 16)
+                            </div></div>
+                            <div class="fld" style="margin-bottom:0;"><label>Email de faturação</label><div class="fld__box">@Icons.Render("mail", 16)<input name="billingEmail" type="email" value="@P("tenant.billing_email")" placeholder="faturacao@@…" disabled="@(!isAdmin)" /></div></div>
+                        </div>
+                        @if (isAdmin)
+                        {
+                            <div class="divider"></div>
+                            <div style="display:flex;gap:9px;justify-content:flex-end;">
+                                <button class="btn btn-ghost" type="reset">Cancelar</button>
+                                <button class="btn btn-primary" type="submit">Guardar alterações</button>
+                            </div>
+                        }
                     </form>
                 </div>
-                <div class="card card-pad">
-                    <div class="card-h"><div><h3>Autenticação de dois fatores</h3></div><span class="badge b-gray card-h more">Em breve</span></div>
-                    <div class="muted" style="font-size:13.5px;font-weight:600;">Proteção adicional da conta com código por SMS ou app autenticadora.</div>
+
+                <div class="card card-pad" style="border-color:var(--danger-soft);">
+                    <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3 style="color:var(--danger);">Eliminar workspace</h3><span class="sub" style="display:block;margin-top:3px;">Esta ação é permanente e não pode ser revertida</span></div></div>
+                    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                        <div class="muted" style="flex:1;min-width:240px;font-size:13.5px;font-weight:600;">
+                            Ao eliminar o workspace, todos os projetos, documentos e dados de faturação serão removidos definitivamente.
+                        </div>
+                        <button class="btn btn-ghost" type="button" style="color:var(--danger);border-color:var(--danger-soft);" onclick="PYToast && PYToast('Ação irreversível — contacta o suporte para eliminar o workspace')">@Icons.Render("alert", 15) Eliminar workspace</button>
+                    </div>
                 </div>
             }
-            else if (section == "plano")
-            {
-                <div class="grid cols-3">
-                    @foreach (var (name, price, tagline, feats) in plans)
+        }
+        @* ===================== SEGURANÇA ===================== *@
+        else if (section == "seguranca")
+        {
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Palavra-passe</h3><span class="sub" style="display:block;margin-top:3px;">Recomendamos uma palavra-passe forte e única</span></div></div>
+                <form asp-action="ChangePassword" method="post">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+                        <div class="fld" style="margin-bottom:0;grid-column:1/-1;max-width:360px;"><label>Palavra-passe atual</label><div class="fld__box">@Icons.Render("lock", 16)<input name="current" type="password" required autocomplete="current-password" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Nova palavra-passe</label><div class="fld__box">@Icons.Render("lock", 16)<input id="pwNew" name="nova" type="password" placeholder="Mínimo 8 caracteres" required autocomplete="new-password" oninput="pwStrength(this.value)" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Confirmar nova palavra-passe</label><div class="fld__box">@Icons.Render("lock", 16)<input name="confirmar" type="password" placeholder="Repetir palavra-passe" required autocomplete="new-password" /></div></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:16px;">
+                        <div id="pwBars" style="display:flex;gap:5px;flex:1;max-width:220px;">
+                            @for (int i = 0; i < 4; i++) { <span style="flex:1;height:5px;border-radius:99px;background:var(--surface-3);"></span> }
+                        </div>
+                        <span class="muted-3" style="font-size:12.5px;font-weight:700;">Força: <b id="pwLabel" style="color:var(--text-3);">—</b></span>
+                    </div>
+                    <div class="divider"></div>
+                    <div style="display:flex;justify-content:flex-end;"><button class="btn btn-primary" type="submit">Atualizar palavra-passe</button></div>
+                </form>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Autenticação de dois fatores (2FA)</h3><span class="sub" style="display:block;margin-top:3px;">Camada extra de segurança ao iniciar sessão</span></div></div>
+                @{ var twofa = UP("2fa_app", "1") == "1"; }
+                <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r-sm);">
+                    <div style="width:42px;height:42px;border-radius:11px;background:var(--success-soft);color:var(--success);display:grid;place-items:center;">@Icons.Render("shield", 22)</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">App de autenticação</div>
+                        <div class="muted-3" id="twofaSub" style="font-size:12.5px;font-weight:600;">@(twofa ? "Ativa · Google Authenticator" : "Desativada")</div>
+                    </div>
+                    <span class="badge b-green" id="twofaBadge" style="display:@(twofa ? "inline-flex" : "none");">Ativa</span>
+                    <button type="button" class="sw @(twofa ? "on" : "")" id="twofaSw" aria-pressed="@(twofa ? "true" : "false")" onclick="toggle2fa(this)"></button>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r-sm);margin-top:12px;">
+                    <div style="width:42px;height:42px;border-radius:11px;background:var(--info-soft);color:var(--info);display:grid;place-items:center;">@Icons.Render("sms", 22)</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">Código por SMS</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(string.IsNullOrEmpty(me.PhoneNumber) ? "Sem número configurado — adiciona o telefone no perfil" : "Enviado para " + me.PhoneNumber)</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick="PYToast && PYToast('2FA por SMS chega com o gateway (Fase 3)')">Configurar</button>
+                </div>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Sessões ativas</h3><span class="sub" style="display:block;margin-top:3px;">Dispositivos com sessão iniciada nesta conta</span></div></div>
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;">@Icons.Render("grid", 19)</div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;">@os · @browser <span class="badge b-green">Atual</span></div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">@ip · Sessão atual</div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <form asp-action="TerminateOtherSessions" method="post" style="display:flex;justify-content:flex-end;margin:0;">
+                    <button class="btn btn-ghost" type="submit" style="color:var(--danger);border-color:var(--danger-soft);">Terminar todas as outras sessões</button>
+                </form>
+            </div>
+        }
+        @* ===================== PLANO & FATURAÇÃO ===================== *@
+        else if (section == "plano")
+        {
+            <div class="card" style="padding:22px;background:var(--grad);color:#fff;display:flex;align-items:center;gap:22px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:220px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span class="badge b-gold" style="background:var(--accent-soft2);color:#fff;">@Icons.Render("spark", 13) Plano @planName</span>
+                        @if (tenant?.Status == "Trial") { <span style="font-size:12.5px;font-weight:700;opacity:.8;">Trial · @trialDays dias restantes</span> }
+                    </div>
+                    <div class="display" style="font-size:27px;font-weight:700;margin-top:12px;">@(planPrice == "Sob consulta" ? planPrice : planPrice + " €") <span style="font-size:15px;font-weight:600;opacity:.75;">/ mês · faturado mensalmente</span></div>
+                    <div style="font-size:13.5px;font-weight:600;opacity:.82;margin-top:4px;">Próxima renovação a @renewal</div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn btn-ghost" type="button" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.22);" onclick="document.getElementById('planList').scrollIntoView({behavior:'smooth'})">Mudar plano</button>
+                    <button class="btn btn-gold" type="button" onclick="document.getElementById('planList').scrollIntoView({behavior:'smooth'})">@Icons.Render("arrowUp", 15) Fazer upgrade</button>
+                </div>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Utilização</h3><span class="sub" style="display:block;margin-top:3px;">Consumo do plano neste ciclo</span></div></div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;"><span style="font-weight:700;font-size:13.5px;">Projetos ativos</span><span class="num" style="font-weight:700;font-size:14px;">@usageProjects <span class="muted-3" style="font-size:12.5px;">/ ∞</span></span></div>
+                        @Components.Progress(Math.Min(usageProjects * 5, 100))
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:7px;">Ilimitados no @planName</div>
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;"><span style="font-weight:700;font-size:13.5px;">Utilizadores</span><span class="num" style="font-weight:700;font-size:14px;">@usageUsers <span class="muted-3" style="font-size:12.5px;">/ 15</span></span></div>
+                        @Components.Progress(seatPct)
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:7px;">@Math.Max(0, 15 - usageUsers) lugares disponíveis</div>
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;"><span style="font-weight:700;font-size:13.5px;">Armazenamento</span><span class="num" style="font-weight:700;font-size:14px;">@gbUsed.ToString("0.#") GB <span class="muted-3" style="font-size:12.5px;">/ 100 GB</span></span></div>
+                        @Components.Progress(gbPct)
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:7px;">@((100 - gbUsed).ToString("0.#")) GB livres</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="planList">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                    <h3 style="margin:0;font-family:var(--font-display);font-size:17px;">Planos disponíveis</h3>
+                    <div class="seg" style="margin-left:auto;">
+                        <button class="active" type="button">Mensal</button>
+                        <button type="button" onclick="PYToast && PYToast('Faturação anual — disponível com o billing real')">Anual <span class="badge b-green" style="margin-left:5px;padding:1px 7px;font-size:10.5px;">−20%</span></button>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                    @foreach (var (nm, price, tagline, feats, enterprise) in new (string, string, string, string[], bool)[]
                     {
-                        var current = tenant?.Plan == name;
-                        <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px;@(current ? "border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);" : "")">
-                            <div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:700;font-size:16px;font-family:var(--font-display);">@name</span>@if (current) { <span class="badge b-gold">Atual</span> }</div>
-                            <div><span class="num display" style="font-size:28px;font-weight:700;">@(price == "Sob consulta" ? price : "€" + price)</span>@if (price != "Sob consulta") { <span class="muted-3" style="font-size:12.5px;font-weight:600;"> /mês</span> }</div>
-                            <div class="muted-3" style="font-size:12.5px;font-weight:600;">@tagline</div>
-                            <div style="display:flex;flex-direction:column;gap:7px;margin-top:4px;">
-                                @foreach (var f in feats) { <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-2);">@Icons.Render("check", 14) @f</div> }
+                        ("Starter", "29", "Freelancers e ateliers pequenos", new[] { "3 projetos ativos", "1 utilizador", "5 GB de armazenamento", "Suporte por email" }, false),
+                        ("Pro", "89", "Ateliers em crescimento", new[] { "Projetos ilimitados", "Até 15 utilizadores", "100 GB de armazenamento", "SMS, Aprovações e Portal", "Integrações BIM" }, false),
+                        ("Enterprise", "Sob consulta", "Grandes gabinetes", new[] { "Tudo do plano Pro", "Utilizadores ilimitados", "Armazenamento dedicado", "SSO e SLA dedicado", "Gestor de conta" }, true),
+                    })
+                    {
+                        var current = planName == nm;
+                        <div class="plan-card @(current ? "current" : "")">
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <span style="font-family:var(--font-display);font-weight:700;font-size:18px;">@nm</span>
+                                @if (current) { <span class="badge b-gold">Plano atual</span> }
                             </div>
-                            <button class="btn @(current ? "btn-ghost" : "btn-primary")" type="button" style="margin-top:auto;justify-content:center;">@(current ? "Plano atual" : "Escolher")</button>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-6px;">@tagline</div>
+                            <div class="display" style="font-size:@(enterprise ? "22px" : "30px");font-weight:700;">@(enterprise ? price : price + " €")@if (!enterprise) { <span style="font-size:14px;font-weight:600;color:var(--text-3);"> /mês</span> }</div>
+                            <div style="display:flex;flex-direction:column;gap:9px;">
+                                @foreach (var f in feats) { <div class="plan-feat" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-2);">@Icons.Render("check", 16) @f</div> }
+                            </div>
+                            <button class="btn @(current ? "btn-soft" : enterprise ? "btn-ghost" : "btn-primary")" type="button" style="justify-content:center;margin-top:auto;" disabled="@current" onclick="PYToast && PYToast('Mudança de plano — disponível com o billing real')">
+                                @(current ? "Plano atual" : enterprise ? "Falar com vendas" : "Escolher Pro")
+                            </button>
                         </div>
                     }
                 </div>
-            }
-            else if (section == "equipa")
-            {
-                <div class="card">
-                    <div class="card-pad card-h" style="padding-bottom:0;"><div><h3>Equipa</h3><span class="sub">@team.Count membros</span></div></div>
-                    <table class="tbl">
-                        <thead><tr><th>Membro</th><th>Email</th><th>Papel</th><th>Estado</th><th>Custo/h</th></tr></thead>
+            </div>
+
+            <div class="grid" style="grid-template-columns:320px 1fr;gap:20px;align-items:start;">
+                <div class="card card-pad">
+                    <div class="card-h" style="margin-bottom:18px;"><div><h3>Método de pagamento</h3></div></div>
+                    <div style="border-radius:var(--r);background:var(--grad);color:#fff;padding:18px;min-height:120px;display:flex;flex-direction:column;justify-content:space-between;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">@Icons.Render("card", 26)<span style="font-weight:700;font-size:13px;opacity:.85;">VISA</span></div>
+                        <div>
+                            <div class="num" style="font-size:17px;letter-spacing:0.12em;font-weight:600;">•••• •••• •••• 4218</div>
+                            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;opacity:.82;margin-top:6px;"><span>Ana Moreira</span><span>09/28</span></div>
+                        </div>
+                    </div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:12px;">Cobrança a 1 de cada mês. IVA incluído à taxa legal em vigor.</div>
+                    <div class="divider"></div>
+                    <button class="btn btn-ghost btn-sm" type="button" style="width:100%;justify-content:center;" onclick="PYToast && PYToast('Gestão de cartões — disponível com o billing real')">Alterar cartão</button>
+                </div>
+
+                <div class="card card-pad">
+                    <div class="card-h" style="margin-bottom:14px;align-items:flex-start;"><div><h3>Histórico de faturas</h3><span class="sub" style="display:block;margin-top:3px;">Faturas da subscrição ProjectYard</span></div></div>
+                    <table class="tbl" style="margin-top:-4px;">
+                        <thead><tr><th>Fatura</th><th>Data</th><th>Plano</th><th>Valor</th><th></th></tr></thead>
                         <tbody>
-                        @foreach (var u in team)
+                        @foreach (var (num, date, plan, amount) in subInvoices)
                         {
                             <tr>
-                                <td><div style="display:flex;align-items:center;gap:10px;">@Components.Avatar(u.Name, 34)<div><div style="font-weight:700;">@u.Name @(u.Id == me.Id ? "· tu" : "")</div><div class="muted-3" style="font-size:12px;font-weight:600;">@(u.Funcao ?? "—")</div></div></div></td>
-                                <td class="muted" style="font-weight:600;">@u.Email</td>
-                                <td><span class="badge @(u.Role == "Owner" ? "b-gold" : u.Role is "Administrador" or "Gestor" ? "b-violet" : "b-gray")">@u.Role</span></td>
-                                <td><span class="badge @(u.Status == "Ativo" ? "b-green" : "b-amber")">@u.Status</span></td>
-                                <td class="num" style="font-weight:700;">@(u.CostHour is { } ch ? Ui.Eur(ch) + "/h" : "—")</td>
+                                <td class="num" style="font-weight:700;">@num</td>
+                                <td class="muted" style="font-weight:600;">@date</td>
+                                <td style="font-weight:600;font-size:13.5px;">@plan</td>
+                                <td class="num" style="font-weight:700;">@amount</td>
+                                <td style="text-align:right;"><button class="btn btn-ghost btn-sm" type="button" onclick="PYToast && PYToast('PDF da fatura — disponível com o billing real')">@Icons.Render("download", 14) PDF</button></td>
                             </tr>
                         }
                         </tbody>
                     </table>
                 </div>
-                <div class="card card-pad">
-                    <div class="card-h"><div><h3>Matriz de permissões</h3><span class="sub">Por papel</span></div></div>
-                    <table class="tbl">
-                        <thead><tr><th>Capacidade</th>@foreach (var r in roleNames) { <th style="text-align:center;">@r</th> }</tr></thead>
+            </div>
+        }
+        @* ===================== EQUIPA & PERMISSÕES ===================== *@
+        else if (section == "equipa")
+        {
+            <div class="card card-pad">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap;">
+                    <div>
+                        <h3 style="margin:0;font-family:var(--font-display);font-size:17px;">Membros da equipa</h3>
+                        <span class="sub" style="color:var(--text-3);font-size:13px;font-weight:600;">@team.Count membros · @Math.Min(team.Count, 15) de 15 lugares ocupados</span>
+                    </div>
+                </div>
+                @if (isAdmin)
+                {
+                    <form asp-action="InviteMember" method="post" style="display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+                        <input type="hidden" name="channel" id="invChannel" value="email" />
+                        <div class="seg">
+                            <button type="button" id="invChEmail" class="active" onclick="setInvChannel('email')">@Icons.Render("mail", 14) Email</button>
+                            <button type="button" id="invChSms" onclick="setInvChannel('sms')">@Icons.Render("sms", 14) SMS</button>
+                        </div>
+                        <div class="fld__box" style="padding:0 12px;min-width:220px;flex:1;">
+                            <span id="invIcon">@Icons.Render("mail", 15)</span>
+                            <input name="contact" id="invContact" placeholder="convite@email.pt" required style="border:none;outline:none;background:transparent;padding:11px 0;font-size:13.5px;flex:1;color:var(--text);" />
+                        </div>
+                        <div class="fld__box" style="min-width:150px;padding:0 12px;">
+                            <select name="role" style="@sel()">@foreach (var r in new[] { "Administrador", "Gestor", "Membro", "Cliente" }) { <option selected="@(r == "Membro")">@r</option> }</select>@Icons.Render("chevD", 15)
+                        </div>
+                        <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Convidar</button>
+                    </form>
+                }
+                <table class="tbl">
+                    <thead><tr><th>Membro</th><th>Papel</th><th>Estado</th><th>Última atividade</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var u in team)
+                    {
+                        var isMe = u.Id == me.Id;
+                        var prot = u.IsSuperadmin || u.Role == "Owner";
+                        var stColor = u.Status == "Ativo" ? "var(--success)" : u.Status == "Inativo" ? "var(--text-3)" : "var(--warning)";
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    @Components.Avatar(u.Name, 38)
+                                    <div>
+                                        <div style="font-weight:700;display:flex;align-items:center;gap:7px;">@u.Name @if (isMe) { <span class="badge b-gray" style="padding:1px 7px;font-size:10.5px;">Tu</span> }</div>
+                                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">@u.Email</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge @RoleTag(u.Role)">@u.Role</span></td>
+                            <td><span style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:@stColor;"><span style="width:7px;height:7px;border-radius:99px;background:currentColor;"></span>@(u.Status == "Pendente" ? "Convite pendente" : u.Status)</span></td>
+                            <td class="muted" style="font-weight:600;font-size:13.5px;">@(isMe ? "Agora" : Rel(u.LastActiveAt))</td>
+                            <td style="text-align:right;">
+                                @if (prot)
+                                {
+                                    <span title="Protegido — não pode ser removido" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);font-weight:700;font-size:12px;">@Icons.Render("lock", 14) Protegido</span>
+                                }
+                                else if (u.Status == "Pendente" && isAdmin)
+                                {
+                                    <form asp-action="CancelInvite" method="post" style="margin:0;display:inline;"><input type="hidden" name="userId" value="@u.Id" /><button class="btn btn-ghost btn-sm" type="submit">@Icons.Render("x", 14) Cancelar</button></form>
+                                }
+                                else if (isAdmin && !isMe)
+                                {
+                                    <details style="position:relative;display:inline-block;">
+                                        <summary class="icon-btn" style="width:34px;height:34px;list-style:none;cursor:pointer;display:inline-grid;place-items:center;">@Icons.Render("dots", 17)</summary>
+                                        <div class="card" style="position:absolute;right:0;top:38px;z-index:30;min-width:210px;padding:10px;box-shadow:var(--sh-md);text-align:left;">
+                                            <form asp-action="ChangeMemberRole" method="post" style="margin:0 0 8px;">
+                                                <input type="hidden" name="userId" value="@u.Id" />
+                                                <div class="fld__box" style="height:38px;padding:0 10px;margin-bottom:7px;">
+                                                    <select name="role" style="@sel()">@foreach (var r in new[] { "Administrador", "Gestor", "Membro", "Cliente" }) { <option selected="@(u.Role == r)">@r</option> }</select>@Icons.Render("chevD", 14)
+                                                </div>
+                                                <button class="btn btn-soft btn-sm" type="submit" style="width:100%;justify-content:center;">Mudar papel</button>
+                                            </form>
+                                            <form asp-action="DeactivateMember" method="post" style="margin:0;">
+                                                <input type="hidden" name="userId" value="@u.Id" />
+                                                <button class="btn btn-ghost btn-sm" type="submit" style="width:100%;justify-content:center;color:@(u.Active ? "var(--danger)" : "var(--success)");">@(u.Active ? "Desativar acesso" : "Reativar acesso")</button>
+                                            </form>
+                                        </div>
+                                    </details>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var inv in smsInvites)
+                    {
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <span class="avatar" style="width:38px;height:38px;background:var(--info-soft);color:var(--info);font-size:11px;">SMS</span>
+                                    <div>
+                                        <div style="font-weight:700;">@inv.Contact</div>
+                                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">Convite por SMS</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge @RoleTag(inv.Role)">@inv.Role</span></td>
+                            <td><span style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:var(--warning);"><span style="width:7px;height:7px;border-radius:99px;background:currentColor;"></span>Convite pendente</span></td>
+                            <td class="muted" style="font-weight:600;font-size:13.5px;">—</td>
+                            <td style="text-align:right;">
+                                @if (isAdmin)
+                                {
+                                    <form asp-action="CancelInvite" method="post" style="margin:0;display:inline;"><input type="hidden" name="inviteId" value="@inv.Id" /><button class="btn btn-ghost btn-sm" type="submit">@Icons.Render("x", 14) Cancelar</button></form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Papéis e permissões</h3><span class="sub" style="display:block;margin-top:3px;">O que cada papel pode fazer no workspace</span></div></div>
+                <div style="overflow-x:auto;">
+                    <table class="tbl" style="min-width:620px;">
+                        <thead><tr><th>Permissão</th>@foreach (var r in permRoles) { <th style="text-align:center;">@r</th> }</tr></thead>
                         <tbody>
                         @foreach (var (cap, vals) in perms)
                         {
-                            <tr><td style="font-weight:600;">@cap</td>
-                            @foreach (var v in vals)
-                            {
-                                <td style="text-align:center;">@if (v == 1) { <span style="color:var(--success);">@Icons.Render("check", 16)</span> } else if (v == 2) { <span class="muted-3" style="font-size:11px;font-weight:700;">Parcial</span> } else { <span class="muted-3">—</span> }</td>
-                            }
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else if (section == "lookups")
-            {
-                <div class="card card-pad">
-                    <div class="card-h"><div><h3>Listas & lookups</h3><span class="sub">Fases, prioridades e estados usados nos formulários</span></div></div>
-                    <form asp-action="AddLookup" method="post" style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
-                        <div class="fld__box" style="height:44px;min-width:170px;"><select name="kind" style="@sel()"><option value="fase">Fases</option><option value="prioridade">Prioridades</option><option value="tipo">Tipos de hora</option><option value="categoria-risco">Categorias de risco</option></select></div>
-                        <div class="fld__box" style="height:44px;flex:1;min-width:200px;"><input name="value" placeholder="Novo valor…" required /></div>
-                        <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Adicionar</button>
-                    </form>
-                    @if (lookups.Count == 0)
-                    {
-                        <div class="muted" style="font-size:13px;font-weight:600;">Ainda sem valores personalizados — os formulários usam as listas standard. Adiciona acima para personalizar.</div>
-                    }
-                    else
-                    {
-                        @foreach (var g in lookups.GroupBy(l => l.Kind))
-                        {
-                            <div class="nav-label" style="padding:12px 0 6px;">@g.Key</div>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                @foreach (var l in g)
-                                {
-                                    <span class="chip" style="display:inline-flex;align-items:center;gap:7px;">@l.Value
-                                        <form asp-action="DeleteLookup" asp-route-id="@l.Id" method="post" style="display:inline;margin:0;"><button type="submit" style="border:none;background:transparent;color:var(--danger);cursor:pointer;display:grid;">@Icons.Render("x", 12)</button></form>
-                                    </span>
-                                }
-                            </div>
-                        }
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="card card-pad">
-                    <div class="card-h"><div><h3>Notificações</h3><span class="sub">Email, SMS e portal do cliente</span></div></div>
-                    <table class="tbl">
-                        <thead><tr><th>Evento</th><th style="text-align:center;">Email</th><th style="text-align:center;">SMS</th><th style="text-align:center;">Portal</th></tr></thead>
-                        <tbody>
-                        @foreach (var (ev, em, sm, po) in notifs)
-                        {
                             <tr>
-                                <td style="font-weight:600;">@ev</td>
-                                <td style="text-align:center;"><input type="checkbox" checked="@em" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
-                                <td style="text-align:center;"><input type="checkbox" checked="@sm" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
-                                <td style="text-align:center;"><input type="checkbox" checked="@po" style="width:17px;height:17px;accent-color:var(--navy);" /></td>
+                                <td style="font-weight:600;font-size:13.5px;">@cap</td>
+                                @foreach (var v in vals)
+                                {
+                                    <td style="text-align:center;">@if (v == 1) { <span style="color:var(--success);display:inline-grid;place-items:center;">@Icons.Render("check", 17)</span> } else if (v == 2) { <span class="muted-3" style="font-size:11.5px;font-weight:700;">Próprios</span> } else { <span style="color:var(--border-2);">—</span> }</td>
+                                }
                             </tr>
                         }
                         </tbody>
                     </table>
-                    <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:12px;">As preferências de envio entram em vigor com a integração de email/SMS (Fase 3).</div>
                 </div>
+                <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:14px;display:flex;align-items:center;gap:7px;">@Icons.Render("lock", 13) Apenas administradores podem alterar papéis e permissões.</div>
+            </div>
+        }
+        @* ===================== LISTAS & LOOKUPS ===================== *@
+        else if (section == "lookups")
+        {
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 16px;background:var(--accent-soft);border-radius:var(--r-sm);font-size:13px;font-weight:600;color:var(--accent-700);">
+                @Icons.Render("shield", 16) <span>Tabelas de referência do workspace. Só <b>Superadmin</b> e <b>Administrador</b> podem editar; renomear não afeta o histórico (as tarefas guardam a referência).</span>
+            </div>
+            async System.Threading.Tasks.Task LookupCard(string title, string sub, string kind)
+            {
+                    var items = lookups.Where(l => l.Kind == kind).OrderBy(l => l.SortOrder).ToList();
+                    <div class="card card-pad">
+                        <div class="card-h" style="margin-bottom:14px;align-items:flex-start;"><div><h3>@title</h3><span class="sub" style="display:block;margin-top:3px;">@sub</span></div></div>
+                        <table class="tbl">
+                            <thead><tr><th style="width:54px;">Cor</th><th>Nome</th><th style="width:70px;text-align:center;">Ordem</th><th style="width:80px;text-align:center;">Ativo</th><th style="width:46px;"></th></tr></thead>
+                            <tbody>
+                            @for (int i = 0; i < items.Count; i++)
+                            {
+                                var it = items[i];
+                                <tr>
+                                    <td>
+                                        <details class="lk-swpop" style="position:relative;">
+                                            <summary style="list-style:none;cursor:pointer;width:24px;height:24px;border-radius:7px;background:@(it.Note ?? "#6a5af9");border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);display:block;" title="Mudar cor"></summary>
+                                            <div class="card" style="position:absolute;left:0;top:30px;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:9px;box-shadow:var(--sh-md);">
+                                                @foreach (var c in palette)
+                                                {
+                                                    <button type="button" onclick="lkRecolor(this, @it.Id, '@c')" style="width:22px;height:22px;border-radius:6px;background:@c;border:@(it.Note == c ? "2px solid var(--text)" : "none");cursor:pointer;"></button>
+                                                }
+                                            </div>
+                                        </details>
+                                    </td>
+                                    <td><input class="lk-input" value="@it.Value" onchange="lkRename(@it.Id, this.value)" @(isAdmin ? "" : "disabled") /></td>
+                                    <td class="num muted-3" style="text-align:center;font-weight:700;">@(i + 1)</td>
+                                    <td style="text-align:center;"><button type="button" class="sw sw-sm @(it.Active == true ? "on" : "")" onclick="lkToggle(this, @it.Id)" @(isAdmin ? "" : "disabled")></button></td>
+                                    <td style="text-align:right;">
+                                        @if (isAdmin)
+                                        {
+                                            <form asp-action="DeleteLookup" asp-route-id="@it.Id" method="post" style="margin:0;display:inline;"><button class="icon-btn" style="width:32px;height:32px;" type="submit" title="Remover">@Icons.Render("x", 15)</button></form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                        @if (isAdmin)
+                        {
+                            <form asp-action="AddLookup" method="post" style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+                                <input type="hidden" name="kind" value="@kind" />
+                                <input type="hidden" name="color" value="#6a5af9" class="lk-newcolor" />
+                                <details class="lk-swpop" style="position:relative;">
+                                    <summary style="list-style:none;cursor:pointer;width:24px;height:24px;border-radius:7px;background:#6a5af9;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);display:block;" title="Cor do novo valor"></summary>
+                                    <div class="card" style="position:absolute;left:0;bottom:30px;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:9px;box-shadow:var(--sh-md);">
+                                        @foreach (var c in palette)
+                                        {
+                                            <button type="button" onclick="lkPickNew(this, '@c')" style="width:22px;height:22px;border-radius:6px;background:@c;border:none;cursor:pointer;"></button>
+                                        }
+                                    </div>
+                                </details>
+                                <input name="value" placeholder="Novo valor…" required class="lk-input" style="flex:1;background:var(--surface-2);" />
+                                <button class="btn btn-primary btn-sm" type="submit">@Icons.Render("plus", 14) Adicionar</button>
+                            </form>
+                        }
+                    </div>
             }
+            await LookupCard("Fases do projeto", "Usadas em tarefas, entregáveis, horas e cronograma", "fase");
+            <div class="grid cols-2">
+                @{ await LookupCard("Prioridades", "Nível de urgência das tarefas", "prioridade"); }
+                @{ await LookupCard("Estados de tarefa", "Colunas do quadro Kanban", "estado-tarefa"); }
+            </div>
+            <div class="grid cols-2">
+                @{ await LookupCard("Tipos de hora", "Categorias no registo de horas", "tipo-hora"); }
+                @{ await LookupCard("Tipos de evento", "Filtros e cores do calendário", "tipo-evento"); }
+            </div>
+        }
+        @* ===================== NOTIFICAÇÕES ===================== *@
+        else if (section == "notificacoes")
+        {
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Preferências de notificação</h3><span class="sub" style="display:block;margin-top:3px;">Escolhe como queres ser avisado de cada evento</span></div></div>
+                <table class="tbl" id="notifTbl">
+                    <thead>
+                        <tr>
+                            <th>Evento</th>
+                            <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("mail", 14) Email</span></th>
+                            <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("sms", 14) SMS</span></th>
+                            <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("bell", 14) Portal</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @for (int i = 0; i < notifEvents.Length; i++)
+                    {
+                        var row = i < notifState.Length ? notifState[i] : "000";
+                        <tr>
+                            <td style="font-weight:600;font-size:13.5px;">@notifEvents[i]</td>
+                            @for (int k = 0; k < 3; k++)
+                            {
+                                var on = row.Length > k && row[k] == '1';
+                                <td style="text-align:center;"><div style="display:inline-flex;"><button type="button" class="sw sw-sm @(on ? "on" : "")" data-row="@i" data-col="@k" onclick="notifToggle(this)"></button></div></td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                <div class="divider"></div>
+                <div style="display:flex;gap:9px;justify-content:flex-end;">
+                    <button class="btn btn-ghost" type="button" onclick="notifReset()">Repor predefinições</button>
+                    <button class="btn btn-primary" type="button" onclick="PYToast && PYToast('Preferências guardadas')">Guardar</button>
+                </div>
+                <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:12px;">O envio efetivo entra em vigor com a integração de email/SMS (Fase 3) — as preferências ficam já guardadas.</div>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;"><div><h3>Canais e horários</h3></div></div>
+                @{
+                    var digest = UP("digest", "1") == "1";
+                    var quiet = UP("quiet", "20:00|08:00").Split('|');
+                }
+                <div style="display:flex;align-items:center;gap:14px;padding:4px 0 16px;border-bottom:1px solid var(--border);">
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">Resumo diário por email</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">Um email às 08:00 com tarefas, prazos e aprovações do dia.</div>
+                    </div>
+                    <button type="button" class="sw @(digest ? "on" : "")" onclick="swParam(this, 'user.@(me.Id).digest')"></button>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;padding:16px 0;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14px;">Horário de silêncio</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">Não enviar SMS nem notificações fora deste período.</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;">
+                        <input type="time" id="quietFrom" value="@(quiet.Length > 0 ? quiet[0] : "20:00")" onchange="quietSave()" style="padding:7px 12px;border:1px solid var(--border-2);border-radius:var(--r-sm);background:transparent;color:var(--text);font-weight:700;font-family:inherit;" />
+                        <span class="muted-3">até</span>
+                        <input type="time" id="quietTo" value="@(quiet.Length > 1 ? quiet[1] : "08:00")" onchange="quietSave()" style="padding:7px 12px;border:1px solid var(--border-2);border-radius:var(--r-sm);background:transparent;color:var(--text);font-weight:700;font-family:inherit;" />
+                    </div>
+                </div>
+            </div>
+        }
+        @* ===================== INTEGRAÇÕES ===================== *@
+        else
+        {
+            <div class="card card-pad">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap;">
+                    <div>
+                        <h3 style="margin:0;font-family:var(--font-display);font-size:17px;">Integrações</h3>
+                        <span class="sub" id="integSub" style="color:var(--text-3);font-size:13px;font-weight:600;">@integrOn.Count ligadas · liga o ProjectYard às tuas ferramentas</span>
+                    </div>
+                    <button class="btn btn-ghost" type="button" style="margin-left:auto;" onclick="PYToast && PYToast('Diretório de integrações — em breve')">@Icons.Render("search", 15) Explorar diretório</button>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+                    @foreach (var it in integrations)
+                    {
+                        var on = integrOn.Contains(it.Name);
+                        <div class="integ-card" data-integ="@it.Name">
+                            <div style="display:flex;align-items:flex-start;gap:13px;">
+                                <div class="integ-logo" style="background:@it.Color;">@it.Mono</div>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="display:flex;align-items:center;gap:8px;">
+                                        <span style="font-weight:700;font-size:14.5px;">@it.Name</span>
+                                        <span class="badge b-green integ-badge" style="display:@(on ? "inline-flex" : "none");">Ligado</span>
+                                    </div>
+                                    <div class="muted-3" style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:2px;">@it.Cat</div>
+                                </div>
+                                <button type="button" class="sw @(on ? "on" : "")" onclick="integToggle(this)" @(isAdmin ? "" : "disabled")></button>
+                            </div>
+                            <div class="muted" style="font-size:13px;font-weight:600;line-height:1.5;">@it.Desc</div>
+                            <button class="btn btn-sm @(on ? "btn-ghost" : "btn-soft") integ-btn" type="button" style="justify-content:center;" onclick="integToggle(this)" @(isAdmin ? "" : "disabled")>
+                                @(on ? "Gerir ligação" : "+ Ligar")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Chave de API</h3><span class="sub" style="display:block;margin-top:3px;">Para integrações personalizadas e webhooks</span></div></div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div class="fld__box num" style="flex:1;min-width:260px;padding:0 14px;letter-spacing:0.04em;color:var(--text-2);">
+                        @Icons.Render("lock", 15)
+                        <input readonly value="@apiKeyMasked" style="border:none;outline:none;background:transparent;padding:12px 0;font-size:13.5px;flex:1;font-family:var(--font-display);color:var(--text-2);" />
+                    </div>
+                    <button class="btn btn-ghost" type="button" onclick="copyApiKey()">Copiar</button>
+                    <form asp-action="RegenerateApiKey" method="post" style="margin:0;" onsubmit="return confirm('Regenerar a chave invalida a anterior. Continuar?')">
+                        <button class="btn btn-ghost" type="submit" style="color:var(--danger);border-color:var(--danger-soft);">@(apiKey.Length > 0 ? "Regenerar" : "Gerar chave")</button>
+                    </form>
+                </div>
+            </div>
+        }
         </div>
     </div>
 </div>
+
+<script>
+    // toast ligeiro (mesmo visual do aviso TempData do layout)
+    window.PYToast = function (msg) {
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:999;padding:12px 18px;border-radius:10px;background:var(--navy);color:#fff;font-weight:600;font-size:13.5px;box-shadow:var(--sh-md);opacity:0;transition:opacity .2s;';
+        document.body.appendChild(t);
+        requestAnimationFrame(function () { t.style.opacity = '1'; });
+        setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 250); }, 2600);
+    };
+    var AF = function () { return document.querySelector('#afForm input[name="__RequestVerificationToken"]').value; };
+    function postParam(key, value) {
+        var fd = new FormData();
+        fd.append('key', key); fd.append('value', value);
+        return fetch('@Url.Action("SetParam")', { method: 'POST', body: fd, headers: { 'RequestVerificationToken': AF() } });
+    }
+    function postForm(url, data) {
+        var fd = new FormData();
+        Object.keys(data).forEach(function (k) { fd.append(k, data[k]); });
+        return fetch(url, { method: 'POST', body: fd, headers: { 'RequestVerificationToken': AF() } });
+    }
+
+    // segurança — barra de força
+    function pwStrength(v) {
+        var s = 0;
+        if (v.length >= 8) s++;
+        if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++;
+        if (/\d/.test(v)) s++;
+        if (/[^A-Za-z0-9]/.test(v) && v.length >= 12) s++;
+        var bars = document.querySelectorAll('#pwBars span');
+        var cols = ['var(--danger)', 'var(--warning)', 'var(--success)', 'var(--success)'];
+        var names = ['Fraca', 'Razoável', 'Forte', 'Excelente'];
+        bars.forEach(function (b, i) { b.style.background = i < s ? cols[s - 1] : 'var(--surface-3)'; });
+        var lb = document.getElementById('pwLabel');
+        lb.textContent = v.length ? names[Math.max(0, s - 1)] : '—';
+        lb.style.color = v.length ? cols[Math.max(0, s - 1)] : 'var(--text-3)';
+    }
+    function toggle2fa(sw) {
+        sw.classList.toggle('on');
+        var on = sw.classList.contains('on');
+        document.getElementById('twofaSub').textContent = on ? 'Ativa · Google Authenticator' : 'Desativada';
+        document.getElementById('twofaBadge').style.display = on ? 'inline-flex' : 'none';
+        postParam('user.@(me.Id).2fa_app', on ? '1' : '0');
+    }
+
+    // switches genéricos (param 0/1)
+    function swParam(sw, key) {
+        sw.classList.toggle('on');
+        postParam(key, sw.classList.contains('on') ? '1' : '0');
+    }
+
+    // convite — canal email/SMS
+    function setInvChannel(ch) {
+        document.getElementById('invChannel').value = ch;
+        document.getElementById('invChEmail').classList.toggle('active', ch === 'email');
+        document.getElementById('invChSms').classList.toggle('active', ch === 'sms');
+        var inp = document.getElementById('invContact');
+        inp.placeholder = ch === 'email' ? 'convite@email.pt' : '+351 …';
+        inp.type = ch === 'email' ? 'email' : 'tel';
+    }
+
+    // lookups
+    function lkRename(id, value) { postForm('@Url.Action("RenameLookup")', { id: id, value: value }); }
+    function lkRecolor(btn, id, color) {
+        postForm('@Url.Action("RecolorLookup")', { id: id, color: color });
+        var pop = btn.closest('details');
+        pop.querySelector('summary').style.background = color;
+        pop.removeAttribute('open');
+    }
+    function lkToggle(sw, id) { sw.classList.toggle('on'); postForm('@Url.Action("ToggleLookup")', { id: id }); }
+    function lkPickNew(btn, color) {
+        var pop = btn.closest('details');
+        pop.querySelector('summary').style.background = color;
+        pop.closest('form').querySelector('.lk-newcolor').value = color;
+        pop.removeAttribute('open');
+    }
+
+    // notificações
+    function notifSave() {
+        var rows = [];
+        for (var i = 0; i < @notifEvents.Length; i++) {
+            var bits = '';
+            for (var k = 0; k < 3; k++) {
+                var sw = document.querySelector('#notifTbl .sw[data-row="' + i + '"][data-col="' + k + '"]');
+                bits += sw && sw.classList.contains('on') ? '1' : '0';
+            }
+            rows.push(bits);
+        }
+        postParam('user.@(me.Id).notifs', rows.join('|'));
+    }
+    function notifToggle(sw) { sw.classList.toggle('on'); notifSave(); }
+    function notifReset() {
+        var def = '@notifDefaults'.split('|');
+        document.querySelectorAll('#notifTbl .sw').forEach(function (sw) {
+            var r = +sw.dataset.row, c = +sw.dataset.col;
+            sw.classList.toggle('on', def[r][c] === '1');
+        });
+        notifSave();
+        if (window.PYToast) PYToast('Predefinições repostas');
+    }
+    function quietSave() {
+        postParam('user.@(me.Id).quiet', document.getElementById('quietFrom').value + '|' + document.getElementById('quietTo').value);
+    }
+
+    // integrações
+    function integToggle(el) {
+        var card = el.closest('.integ-card');
+        var sw = card.querySelector('.sw');
+        sw.classList.toggle('on');
+        var on = sw.classList.contains('on');
+        card.querySelector('.integ-badge').style.display = on ? 'inline-flex' : 'none';
+        var btn = card.querySelector('.integ-btn');
+        btn.textContent = on ? 'Gerir ligação' : '+ Ligar';
+        btn.classList.toggle('btn-ghost', on);
+        btn.classList.toggle('btn-soft', !on);
+        var names = [];
+        document.querySelectorAll('.integ-card').forEach(function (c) {
+            if (c.querySelector('.sw').classList.contains('on')) names.push(c.dataset.integ);
+        });
+        postParam('tenant.integr', names.join(','));
+    }
+    function copyApiKey() {
+        var k = '@apiKey';
+        if (!k) { if (window.PYToast) PYToast('Gera primeiro uma chave de API'); return; }
+        navigator.clipboard.writeText(k).then(function () { if (window.PYToast) PYToast('Chave copiada'); });
+    }
+</script>
