@@ -1,0 +1,70 @@
+@* Loader L1 da marca (SPEC-splash-loader.md): overlay de ecrã (véu claro) acionado na
+   navegação e em fetch lentos; anel inline nos botões de submit. Só aparece se demorar. *@
+<div class="py-overlay" id="pyNavOverlay" role="status" aria-live="polite" aria-hidden="true">
+    <div class="py-loader lg">
+        <svg class="py-loader__ring" viewBox="0 0 96 96" fill="none">
+            <circle cx="48" cy="48" r="44" stroke="rgba(35,49,64,.12)" stroke-width="4"/>
+            <circle cx="48" cy="48" r="44" stroke="#d9a32a" stroke-width="4" stroke-linecap="round" stroke-dasharray="66 210"/>
+        </svg>
+        <div class="py-loader__mark"><img src="~/assets/py-loader-mark.png" alt="" /></div>
+    </div>
+    <div class="py-loading-text"><i>A</i> <i>carregar</i> <i>&hellip;</i></div>
+</div>
+<script>
+    (function () {
+        var ov = document.getElementById('pyNavOverlay');
+        var timer = null;
+        var DELAY = 300; // só mostrar se a operação demorar
+
+        function show() { ov.classList.add('show'); ov.setAttribute('aria-hidden', 'false'); }
+        function hide() { clearTimeout(timer); timer = null; ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true'); }
+        function arm() { clearTimeout(timer); timer = setTimeout(show, DELAY); }
+        window.PYLoader = { show: show, hide: hide };
+
+        // navegação por link interno → overlay (se demorar)
+        document.addEventListener('click', function (e) {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            var a = e.target.closest && e.target.closest('a[href]');
+            if (!a || a.target === '_blank' || a.hasAttribute('download') || a.hasAttribute('data-no-loader')) return;
+            var href = a.getAttribute('href') || '';
+            if (href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) return;
+            if (a.origin && a.origin !== location.origin) return;
+            arm();
+        }, true);
+
+        // submit → anel inline no botão ("a guardar"); a navegação subsequente esconde tudo
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form || form.hasAttribute('data-no-loader')) return;
+            var btn = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (!btn || btn.classList.contains('py-busy')) return;
+            setTimeout(function () { // depois de o browser capturar os dados do form
+                btn.classList.add('py-busy');
+                btn.setAttribute('aria-busy', 'true');
+                if (btn.tagName === 'BUTTON') {
+                    var ring = document.createElement('span');
+                    ring.className = 'py-loader sm bare';
+                    ring.innerHTML = '<svg class="py-loader__ring" viewBox="0 0 96 96" fill="none">'
+                        + '<circle cx="48" cy="48" r="44" stroke="rgba(255,255,255,.25)" stroke-width="8"/>'
+                        + '<circle cx="48" cy="48" r="44" stroke="#d9a32a" stroke-width="8" stroke-linecap="round" stroke-dasharray="66 210"/></svg>';
+                    btn.insertBefore(ring, btn.firstChild);
+                }
+            }, 0);
+        }, true);
+
+        // fetch lentos → overlay enquanto houver pedidos pendentes
+        var pending = 0;
+        var origFetch = window.fetch;
+        window.fetch = function () {
+            pending++;
+            if (pending === 1) arm();
+            return origFetch.apply(this, arguments).finally(function () {
+                pending--;
+                if (pending <= 0) { pending = 0; hide(); }
+            });
+        };
+
+        // voltar da bfcache / página pronta → esconder
+        window.addEventListener('pageshow', hide);
+    })();
+</script>

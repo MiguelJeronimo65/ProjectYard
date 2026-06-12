@@ -88,8 +88,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/projectyard.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/py-loader.css" asp-append-version="true" />
 </head>
 <body>
+@await Html.PartialAsync("_Splash")
 <div class="app" id="pyApp">
     <div class="side-backdrop" id="sideBackdrop" style="display:none;" onclick="toggleNav(false)"></div>
     <aside class="sidebar side--dark" id="pySidebar">
@@ -239,5 +241,6 @@
         document.getElementById('sideBackdrop').style.display = open ? 'block' : 'none';
     }
 </script>
+@await Html.PartialAsync("_Loader")
 </body>
 </html>
