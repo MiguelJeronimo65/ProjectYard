@@ -334,6 +334,92 @@ public static class DataSeeder
             Console.WriteLine("seed-extras: canais de chat cross-tenant criados.");
         }
 
+        // Canais extra do Atelier Norte + mensagens (para o ecrã de Chat bater com o protótipo).
+        {
+            var atelierId = await db.Tenants.Where(t => t.Slug == "atelier-norte").Select(t => t.Id).FirstAsync();
+            if (await db.ChatChannels.CountAsync(c => c.TenantId == atelierId) <= 2)
+            {
+                var au = await db.Users.Where(u => u.TenantId == atelierId).ToDictionaryAsync(u => u.Email!);
+                ApplicationUser AU(string e) => au[e + "@atelier-norte.pt"];
+                var projsA = await db.Projects.Where(p => p.TenantId == atelierId).ToDictionaryAsync(p => p.Code);
+
+                async Task<E.ChatChannel> C(string? name, string type, long? projId, (ApplicationUser u, string body, int minAgo)[] msgs, params ApplicationUser[] members)
+                {
+                    var ch = new E.ChatChannel { TenantId = atelierId, Type = type, Name = name, ProjectId = projId, RetentionMonths = 12, CreatedAt = Now.AddMonths(-1) };
+                    db.ChatChannels.Add(ch);
+                    await db.SaveChangesAsync();
+                    foreach (var m in members) db.Add(new E.ChatChannelMember { ChannelId = ch.Id, UserId = m.Id, LastReadAt = Now.AddHours(-2) });
+                    foreach (var (u, body, minAgo) in msgs)
+                        db.ChatMessages.Add(new E.ChatMessage { TenantId = atelierId, ChannelId = ch.Id, SenderId = u.Id, Body = body, CreatedAt = DateTime.Now.AddMinutes(-minAgo) });
+                    await db.SaveChangesAsync();
+                    return ch;
+                }
+
+                var ana2 = AU("ana.moreira"); var rui2 = AU("rui.cardoso"); var joana2 = AU("joana.faria");
+                var sofia2 = AU("sofia.lemos"); var tiago2 = AU("tiago.pinto"); var mn2 = AU("miguel.nunes"); var pedro2 = AU("pedro.dias");
+
+                await C("coordenacao-bim", "channel", projsA["PY-118"].Id, new[]
+                {
+                    (mn2, "Modelo federado atualizado no servidor.", 70),
+                    (tiago2, "Três colisões novas na zona técnica do piso -1.", 65),
+                    (mn2, "Marquei revisão de colisões para amanhã às 10h.", 60),
+                }, mn2, tiago2, joana2, rui2);
+                await C("bolhao-licenciamento", "channel", projsA["PY-112"].Id, new[]
+                {
+                    (sofia2, "Recebemos o parecer da Câmara — há elementos em falta.", 1100),
+                    (rui2, "Quais? Posso ajudar na resposta.", 1090),
+                    (sofia2, "Plano de acessibilidades e mapa de quantidades atualizado.", 1080),
+                }, sofia2, pedro2, rui2, ana2);
+                await C(null, "direct", null, new[]
+                {
+                    (mn2, "Tens cinco minutos para ver o modelo federado?", 200),
+                    (ana2, "Agora não consigo — depois das 11h.", 195),
+                    (mn2, "Combinado.", 190),
+                }, ana2, mn2);
+                await C(null, "direct", null, new[]
+                {
+                    (sofia2, "Consegues validar a planta de implantação antes de enviarmos à Câmara?", 300),
+                }, ana2, sofia2);
+                await C(null, "direct", null, new[]
+                {
+                    (ana2, "Rui, consegues validar o render da Sofia antes de enviarmos?", 280),
+                    (rui2, "Combinado. Falamos depois da reunião.", 275),
+                }, ana2, rui2);
+                Console.WriteLine("seed-extras: canais de chat do Atelier Norte criados.");
+            }
+
+            // SMS (threads do protótipo, ligadas a clientes/projetos reais).
+            if (!await db.SmsMessages.AnyAsync())
+            {
+                var cls = await db.Clients.Where(c => c.TenantId == atelierId).ToDictionaryAsync(c => c.Company);
+                var prj2 = await db.Projects.Where(p => p.TenantId == atelierId).ToDictionaryAsync(p => p.Code);
+                void Sms(string company, string code, string phone, string dir, string body, bool auto, int minAgo)
+                    => db.SmsMessages.Add(new E.SmsMessage
+                    {
+                        TenantId = atelierId,
+                        ClientId = cls[company].Id,
+                        ProjectId = prj2[code].Id,
+                        Direction = dir,
+                        Phone = phone,
+                        Body = body,
+                        IsAuto = auto,
+                        CreatedAt = DateTime.Now.AddMinutes(-minAgo),
+                    });
+                Sms("Grupo Vértice SA", "PY-115", "+351 91 234 5678", "out", "Olá. O entregável \"Projeto de Execução 50%\" aguarda a vossa aprovação. Responda APROVO ou REJEITO. — ProjectYard", true, 180);
+                Sms("Grupo Vértice SA", "PY-115", "+351 91 234 5678", "in", "APROVO", false, 150);
+                Sms("Grupo Vértice SA", "PY-115", "+351 91 234 5678", "out", "Obrigado! Aprovação registada. O milestone de pagamento foi desbloqueado.", true, 149);
+                Sms("Família Albuquerque", "PY-117", "+351 96 555 1212", "out", "Bom dia. Lembrete: reunião de acompanhamento da moradia V4 marcada para 6ª às 15h.", true, 1500);
+                Sms("Família Albuquerque", "PY-117", "+351 96 555 1212", "in", "Bom dia. Surgiu um imprevisto.", false, 240);
+                Sms("Família Albuquerque", "PY-117", "+351 96 555 1212", "in", "Podemos falar amanhã de manhã?", false, 239);
+                Sms("Imobiliária Atlântico", "PY-118", "+351 93 888 4040", "out", "A fatura FT 2026/041 (€37.200) foi emitida. Vencimento a 26 Mai.", true, 40000);
+                Sms("Imobiliária Atlântico", "PY-118", "+351 93 888 4040", "in", "Recebido, obrigado.", false, 39980);
+                Sms("Câmara Municipal", "PY-112", "+351 22 339 0000", "out", "Submissão do Projeto Base do lote de quiosques efetuada. Aguardamos parecer.", false, 12000);
+                Sms("Câmara Municipal", "PY-112", "+351 22 339 0000", "in", "Processo em análise.", false, 11000);
+                await db.SaveChangesAsync();
+                Console.WriteLine("seed-extras: threads SMS criadas.");
+            }
+        }
+
         // Datas das fases (para o Cronograma): distribui o período do projeto pelas suas fases.
         if (await db.ProjectPhases.AnyAsync(p => p.StartPlanned == null))
         {

@@ -1,0 +1,125 @@
+@{
+    ViewData["Title"] = "Chat";
+    var threads = (List<ChatThreadVm>)ViewBag.Threads;
+    var selected = (ChatThreadVm?)ViewBag.Selected;
+    var msgs = (List<ChatMessage>)ViewBag.Messages;
+    long me = ViewBag.Me;
+    string Hm(DateTime d) => d.Date == DateTime.Today ? d.ToString("HH:mm") : d.Date == DateTime.Today.AddDays(-1) ? "Ontem " + d.ToString("HH:mm") : d.ToString("d MMM HH:mm", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    string ChanColor(ChatChannel c) => Components.Color(c.Name ?? "d" + c.Id);
+    var channels = threads.Where(t => t.Channel.Type == "channel").ToList();
+    var directs = threads.Where(t => t.Channel.Type == "direct").ToList();
+}
+<div class="content">
+    <div class="page-head">
+        <div><h1>Chat</h1><p>Canais por projeto e mensagens diretas · isolado por workspace</p></div>
+    </div>
+
+    <div class="card" style="overflow:hidden;display:grid;grid-template-columns:320px 1fr;height:620px;">
+        @* ===== Lista ===== *@
+        <div style="border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;">
+            <div style="padding:14px;border-bottom:1px solid var(--border);">
+                <div class="search" style="width:100%;">@Icons.Render("search", 17)<input placeholder="Procurar conversa…" id="chatSearch" oninput="filterThreads(this.value)" /></div>
+            </div>
+            <div style="overflow-y:auto;flex:1;">
+                <div class="nav-label" style="padding:12px 16px 5px;">Canais</div>
+                @foreach (var t in channels)
+                {
+                    var on = selected?.Channel.Id == t.Channel.Id;
+                    <a class="py-thread" data-name="@t.DisplayName" href="@Url.Action("Index", new { c = t.Channel.Id })"
+                       style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-align:left;color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
+                        <div style="width:42px;height:42px;border-radius:12px;background:@(ChanColor(t.Channel))22;color:@ChanColor(t.Channel);display:grid;place-items:center;font-weight:800;font-size:19px;flex-shrink:0;font-family:var(--font-display);">#</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:13.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Channel.Name</span>
+                                @if (t.Unread > 0) { <span class="badge-count" style="position:static;">@t.Unread</span> }
+                                <span class="muted-3" style="font-size:11px;font-weight:600;">@(t.LastAt is { } la ? Hm(la) : "")</span>
+                            </div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Preview</div>
+                            <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:2px;">@(t.Channel.Project?.Name ?? "")</div>
+                        </div>
+                    </a>
+                }
+                <div class="nav-label" style="padding:12px 16px 5px;">Mensagens diretas</div>
+                @foreach (var t in directs)
+                {
+                    var on = selected?.Channel.Id == t.Channel.Id;
+                    <a class="py-thread" data-name="@t.DisplayName" href="@Url.Action("Index", new { c = t.Channel.Id })"
+                       style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-align:left;color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
+                        <div style="position:relative;">@Components.Avatar(t.OtherNames.FirstOrDefault(), 42)<span style="position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:99px;background:var(--success);border:2px solid var(--surface);"></span></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:13.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.DisplayName</span>
+                                @if (t.Unread > 0) { <span class="badge-count" style="position:static;">@t.Unread</span> }
+                                <span class="muted-3" style="font-size:11px;font-weight:600;">@(t.LastAt is { } la2 ? Hm(la2) : "")</span>
+                            </div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Preview</div>
+                        </div>
+                    </a>
+                }
+            </div>
+        </div>
+
+        @* ===== Conversa ===== *@
+        @if (selected != null)
+        {
+            <div style="display:flex;flex-direction:column;min-height:0;background:var(--surface-2);">
+                <div style="padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);">
+                    @if (selected.Channel.Type == "channel")
+                    {
+                        <div style="width:38px;height:38px;border-radius:11px;background:@(ChanColor(selected.Channel))22;color:@ChanColor(selected.Channel);display:grid;place-items:center;font-weight:800;font-size:17px;font-family:var(--font-display);">#</div>
+                    }
+                    else
+                    {
+                        @Components.Avatar(selected.OtherNames.FirstOrDefault(), 38)
+                    }
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14.5px;">@selected.DisplayName</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(selected.Channel.Type == "channel" ? $"{selected.AllNames.Count} membros · {selected.Channel.Project?.Name ?? "geral"}" : "online")</div>
+                    </div>
+                    @Components.AvStack(selected.AllNames, 4, 26)
+                </div>
+
+                <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px;" id="chatScroll">
+                    @foreach (var m in msgs)
+                    {
+                        var mine = m.SenderId == me;
+                        <div style="display:flex;justify-content:@(mine ? "flex-end" : "flex-start");gap:9px;align-items:flex-end;">
+                            @if (!mine) { @Components.Avatar(m.Sender?.Name, 28) }
+                            <div style="max-width:74%;">
+                                @if (!mine && selected.Channel.Type == "channel")
+                                {
+                                    <div class="muted-3" style="font-size:11.5px;font-weight:700;margin-bottom:3px;padding-inline:4px;">@m.Sender?.Name.Split(' ')[0]</div>
+                                }
+                                <div style="padding:11px 15px;border-radius:@(mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px");background:@(mine ? "var(--grad)" : "var(--surface)");color:@(mine ? "#fff" : "var(--text)");border:@(mine ? "none" : "1px solid var(--border)");font-size:13.5px;line-height:1.5;box-shadow:var(--sh-sm);">@m.Body</div>
+                                <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:4px;padding-inline:4px;text-align:@(mine ? "right" : "left");">@Hm(m.CreatedAt)</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div style="border-top:1px solid var(--border);background:var(--surface);padding:14px;">
+                    <form asp-action="Send" method="post" style="display:flex;gap:10px;align-items:flex-end;margin:0;">
+                        <input type="hidden" name="channelId" value="@selected.Channel.Id" />
+                        <div class="fld__box" style="flex:1;align-items:flex-end;padding:0 14px;">
+                            <textarea name="body" rows="2" required placeholder="Mensagem para @selected.DisplayName…"
+                                      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit();}"
+                                      style="flex:1;border:none;outline:none;background:transparent;resize:none;padding:12px 0;font-size:14px;font-family:inherit;color:var(--text);"></textarea>
+                        </div>
+                        <button class="btn btn-primary" type="submit" style="height:48px;padding:0 18px;">@Icons.Render("plus", 17) Enviar</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty" style="display:grid;place-items:center;">@Icons.Render("message", 34)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem conversas</div></div>
+        }
+    </div>
+</div>
+<script>
+    var sc = document.getElementById('chatScroll'); if (sc) sc.scrollTop = sc.scrollHeight;
+    function filterThreads(q) {
+        q = q.toLowerCase();
+        document.querySelectorAll('.py-thread').forEach(t => t.style.display = t.dataset.name.toLowerCase().includes(q) ? '' : 'none');
+    }
+</script>
