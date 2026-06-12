@@ -11,9 +11,21 @@ public class RisksController : Controller
     private readonly AppDbContext _db;
     public RisksController(AppDbContext db) => _db = db;
 
-    public async Task<IActionResult> Index()
-        => View(await _db.Risks.Include(r => r.Project).Include(r => r.Owner)
-            .OrderByDescending(r => r.Probability * r.Impact).ToListAsync());
+    public async Task<IActionResult> Index(string? estado, string? cat, bool criticos = false)
+    {
+        var all = await _db.Risks.Include(r => r.Project).Include(r => r.Owner)
+            .OrderByDescending(r => r.Probability * r.Impact).ToListAsync();
+        ViewBag.All = all;
+        ViewBag.Estado = estado;
+        ViewBag.Cat = cat;
+        ViewBag.Criticos = criticos;
+        ViewBag.Cats = all.Select(r => r.Category).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+        var list = all.Where(r =>
+            (!criticos || r.Probability * r.Impact >= 15) &&
+            (string.IsNullOrEmpty(estado) || r.Status == estado) &&
+            (string.IsNullOrEmpty(cat) || r.Category == cat)).ToList();
+        return View(list);
+    }
 
     [HttpGet]
     public async Task<IActionResult> Create()

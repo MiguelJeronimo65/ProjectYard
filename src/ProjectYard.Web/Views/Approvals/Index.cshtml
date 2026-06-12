@@ -1,28 +1,160 @@
-@model List<Approval>
 @{
     ViewData["Title"] = "Aprovações";
-    string St(string s) => s switch { "Aprovada" => "b-green", "Devolvida" => "b-red", _ => "b-amber" };
+    var all = (List<Approval>)ViewBag.All;
+    var list = (List<Approval>)ViewBag.List;
+    string tipo = ViewBag.Tipo;
+    var current = (Approval?)ViewBag.Current;
+    var steps = (List<ApprovalStep>)ViewBag.Steps;
+    var types = new[] { "Todos", "Entregável", "Pagamento", "Change Request" };
+    string TypeTag(string t) => t == "Pagamento" ? "b-gold" : t == "Change Request" ? "b-blue" : "b-violet";
+    string TypeIcon(string t) => t == "Pagamento" ? "euro" : t == "Change Request" ? "alert" : "layers";
+    int aguardar = all.Count(a => a.Status == "Aberta");
+    int aprovadas = all.Count(a => a.Status == "Aprovada");
+    int devolvidas = all.Count(a => a.Status == "Devolvida");
+    int PendCount(string t) => all.Count(a => (t == "Todos" || a.Type == t) && a.Status == "Aberta");
 }
 <div class="content">
-    <div class="page-head"><div><h1>Aprovações</h1><p>@Model.Count pedidos de aprovação.</p></div></div>
-    <div class="card">
-        <table class="tbl">
-            <thead><tr><th>Pedido</th><th>Projeto</th><th>Tipo</th><th>Solicitante</th><th style="text-align:right;">Valor</th><th>Prioridade</th><th>Estado</th></tr></thead>
-            <tbody>
-            @foreach (var a in Model)
+    <div class="page-head">
+        <div><h1>Aprovações</h1><p>Decisões pendentes sobre entregáveis, pagamentos e change requests</p></div>
+    </div>
+
+    <div class="grid cols-4" style="margin-bottom:22px;">
+        @foreach (var (icon, c, bg, n, l) in new[]
+        {
+            ("shield", "var(--warning)", "var(--warning-soft)", aguardar.ToString(), "A aguardar decisão"),
+            ("check", "var(--success)", "var(--success-soft)", aprovadas.ToString(), "Aprovadas"),
+            ("x", "var(--danger)", "var(--danger-soft)", devolvidas.ToString(), "Devolvidas"),
+            ("clock", "var(--info)", "var(--info-soft)", "6h", "Tempo médio resposta"),
+        })
+        {
+            <div class="card card-pad" style="display:flex;align-items:center;gap:14px;">
+                <div style="width:46px;height:46px;border-radius:12px;background:@bg;color:@c;display:grid;place-items:center;">@Icons.Render(icon, 22)</div>
+                <div style="flex:1;"><div class="num" style="font-size:26px;font-weight:700;line-height:1;">@n</div><div class="muted" style="font-size:13px;font-weight:600;">@l</div></div>
+            </div>
+        }
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+        @foreach (var t in types)
+        {
+            var n = PendCount(t);
+            <a class="chip @(tipo == t ? "active" : "")" href="@Url.Action("Index", new { tipo = t == "Todos" ? null : t })">@t@(n > 0 ? " · " + n : "")</a>
+        }
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1.25fr;align-items:start;">
+        @* Fila *@
+        <div style="display:flex;flex-direction:column;gap:11px;">
+            @foreach (var a in list)
             {
-                <tr>
-                    <td style="font-weight:700;">@a.Title</td>
-                    <td><span class="badge b-gray">@(a.Project?.Code ?? "—")</span></td>
-                    <td>@a.Type</td>
-                    <td>@(a.RequestedByUser?.Name ?? "—")</td>
-                    <td class="num" style="text-align:right;">@(a.Amount.HasValue ? Ui.Eur(a.Amount) : "—")</td>
-                    <td><span class="badge @(a.Priority == "Alta" ? "b-red" : a.Priority == "Média" ? "b-amber" : "b-gray")">@a.Priority</span></td>
-                    <td><span class="badge @St(a.Status)">@a.Status</span></td>
-                </tr>
+                var on = current?.Id == a.Id;
+                <a class="card card-pad" href="@Url.Action("Index", new { tipo = tipo == "Todos" ? null : tipo, sel = a.Id })"
+                   style="text-align:left;display:flex;gap:13px;align-items:flex-start;color:inherit;padding:16px;border-color:@(on ? "var(--accent)" : "var(--border)");@(on ? "box-shadow:0 0 0 3px var(--accent-soft);" : "")opacity:@(a.Status != "Aberta" ? "0.72" : "1");">
+                    @Components.Avatar(a.RequestedByUser?.Name, 42)
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                            <span class="badge @TypeTag(a.Type)">@a.Type</span>
+                            @if (a.Priority == "Alta" && a.Status == "Aberta") { <span class="badge b-red" style="padding:2px 7px;font-size:10.5px;">Urgente</span> }
+                            @if (a.Status == "Aprovada") { <span class="badge b-green" style="padding:2px 7px;font-size:10.5px;">Aprovado</span> }
+                            @if (a.Status == "Devolvida") { <span class="badge b-amber" style="padding:2px 7px;font-size:10.5px;">Devolvido</span> }
+                        </div>
+                        <div style="font-weight:700;font-size:14.5px;line-height:1.3;">@a.Title</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:3px;">@(a.Project?.Name ?? "—") · @(a.Project?.Code ?? "")</div>
+                    </div>
+                    @if (a.Amount is { } amt) { <div class="num" style="font-weight:700;font-size:14px;">@Ui.Eur(amt)</div> }
+                </a>
             }
-            @if (Model.Count == 0) { <tr><td colspan="7" class="muted" style="padding:24px;">Sem aprovações.</td></tr> }
-            </tbody>
-        </table>
+            @if (list.Count == 0)
+            {
+                <div class="card"><div class="empty" style="padding:40px 20px;">@Icons.Render("shield", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem aprovações</div></div></div>
+            }
+        </div>
+
+        @* Detalhe *@
+        @if (current != null)
+        {
+            <div class="card card-pad" style="position:sticky;top:92px;">
+                <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;">
+                    <div style="width:48px;height:48px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex-shrink:0;">@Icons.Render(TypeIcon(current.Type), 23)</div>
+                    <div style="flex:1;">
+                        <h3 style="margin:0;font-size:18px;font-family:var(--font-display);letter-spacing:-0.01em;">@current.Title</h3>
+                        <div class="muted-3" style="font-size:13px;font-weight:600;margin-top:3px;">@(current.Project?.Name ?? "—") · @(current.Project?.Code ?? "")</div>
+                    </div>
+                    <span class="badge @TypeTag(current.Type)">@current.Type</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(current.Note))
+                {
+                    <div style="background:var(--surface-2);border-radius:var(--r-sm);padding:14px;font-size:13.5px;line-height:1.6;color:var(--text-2);margin-bottom:18px;white-space:pre-line;">@current.Note</div>
+                }
+
+                @if (current.Amount is { } cAmt)
+                {
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:18px;">
+                        <span class="muted" style="font-weight:600;font-size:13.5px;">Valor a aprovar</span>
+                        <span class="num" style="font-weight:700;font-size:20px;">@Ui.Eur(cAmt)</span>
+                    </div>
+                }
+
+                @if (steps.Count > 0)
+                {
+                    <div class="card-h" style="margin-bottom:14px;"><div><h3 style="font-size:14.5px;">Cadeia de aprovação</h3></div></div>
+                    <div class="tl" style="margin-bottom:20px;">
+                        @foreach (var s in steps)
+                        {
+                            <div class="tl-item">
+                                <div class="tl-dot @(s.State == "done" ? "on" : "")" style="@(s.State == "current" ? "border-color:var(--accent);background:var(--accent);color:var(--navy-700);" : "")">
+                                    @if (s.State == "done") { @Icons.Render("check", 11) } else if (s.State == "current") { @Icons.Render("clock", 11) }
+                                </div>
+                                <div style="display:flex;align-items:center;gap:9px;">
+                                    @Components.Avatar(s.User?.Name ?? s.RoleLabel, 26)
+                                    <div>
+                                        <div style="font-weight:700;font-size:13.5px;">@(s.User?.Name ?? s.RoleLabel) <span class="muted-3" style="font-weight:600;">· @(s.RoleLabel ?? "")</span></div>
+                                        <div class="muted-3" style="font-size:12px;font-weight:600;">@(s.State == "done" ? "Aprovado" + (s.ActedAt != null ? " · " + Ui.Date(s.ActedAt) : "") : s.State == "current" ? "Em decisão" : "Por iniciar")</div>
+                                    </div>
+                                    @if (s.State == "current") { <span class="badge b-gold" style="margin-left:auto;padding:2px 8px;font-size:10.5px;">A decidir</span> }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (current.Status == "Aberta")
+                {
+                    <div style="display:flex;gap:10px;">
+                        <form asp-action="Approve" asp-route-id="@current.Id" method="post" style="flex:1;">
+                            <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;">@Icons.Render("check", 16) Aprovar</button>
+                        </form>
+                        <button class="btn btn-ghost" type="button" style="flex:1;justify-content:center;" onclick="document.getElementById('retOv').style.display='grid'">@Icons.Render("x", 16) Devolver</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="badge @(current.Status == "Aprovada" ? "b-green" : "b-amber")" style="width:fit-content;"><span class="bdot"></span>@current.Status</div>
+                }
+            </div>
+        }
     </div>
 </div>
+
+@* Modal devolver *@
+@if (current != null)
+{
+    <div class="modal-overlay" id="retOv" style="display:none;" onmousedown="if(event.target===this)this.style.display='none'">
+        <div class="modal-card" style="width:480px;">
+            <div class="modal-head">
+                <div><h3>Devolver para alterações</h3><p>@current.Title</p></div>
+                <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="document.getElementById('retOv').style.display='none'">@Icons.Render("x", 18)</button>
+            </div>
+            <form asp-action="Return" asp-route-id="@current.Id" method="post">
+                <div class="modal-body">
+                    <div class="fld"><label>Motivo da devolução</label><div class="fld__box" style="align-items:flex-start;"><textarea name="reason" rows="3" placeholder="Explica o que precisa de ser alterado…" style="flex:1;border:none;outline:none;background:transparent;font-size:13.5px;resize:vertical;padding:11px 0;"></textarea></div></div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn btn-ghost" type="button" onclick="document.getElementById('retOv').style.display='none'">Cancelar</button>
+                    <button class="btn btn-primary" type="submit">@Icons.Render("check", 15) Devolver</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
