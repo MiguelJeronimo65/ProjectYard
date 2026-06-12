@@ -92,7 +92,7 @@
                     <form asp-action="Send" method="post" style="display:flex;gap:10px;align-items:flex-end;margin:0;">
                         <input type="hidden" name="clientId" value="@((long)selected.ClientId)" />
                         <div class="fld__box" style="flex:1;align-items:flex-end;padding:0 14px;">
-                            <textarea name="body" id="smsBody" rows="2" required maxlength="480" placeholder="Escreve uma mensagem…" oninput="document.getElementById('smsCount').textContent=this.value.length+'/160'"
+                            <textarea name="body" id="smsBody" rows="2" required maxlength="160" placeholder="Escreve uma mensagem…" oninput="document.getElementById('smsCount').textContent=this.value.length+'/160'"
                                       style="flex:1;border:none;outline:none;background:transparent;resize:none;padding:12px 0;font-size:14px;font-family:inherit;color:var(--text);"></textarea>
                             <span class="muted-3" id="smsCount" style="font-size:11px;font-weight:600;padding-bottom:12px;">0/160</span>
                         </div>

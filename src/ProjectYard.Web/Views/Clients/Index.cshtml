@@ -20,8 +20,8 @@
 
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
         <div class="seg">
-            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "pipeline" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index")">@Icons.Render("grid", 15) Pipeline</a>
-            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "lista" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index", new { view = "lista" })">@Icons.Render("menu", 15) Lista</a>
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "pipeline" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index")">@Icons.Render("kanban", 15) Pipeline</a>
+            <a style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13px;@(viewMode == "lista" ? "background:var(--surface);color:var(--primary-700);box-shadow:var(--sh-sm);" : "color:var(--text-2);")" href="@Url.Action("Index", new { view = "lista" })">@Icons.Render("dots", 15) Lista</a>
         </div>
         <span class="muted-3" style="font-size:13px;font-weight:600;">Valor em pipeline: <b class="num" style="color:var(--text);">@Ui.Eur(pipelineValue)</b></span>
     </div>

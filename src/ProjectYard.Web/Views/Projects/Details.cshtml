@@ -28,6 +28,7 @@
         <div class="page-head__actions">
             <a class="btn btn-ghost" href="@Url.Action("Index")">@Icons.Render("chevL", 16) Voltar</a>
             <a class="btn btn-ghost" href="@Url.Action("Edit", new { id = p.Id })">@Icons.Render("settings", 16) Editar</a>
+            <button class="btn btn-ghost" type="button" onclick="setTab(5)">@Icons.Render("users", 16) Membros</button>
             <a class="btn btn-primary" asp-controller="Tasks" asp-action="Index">@Icons.Render("plus", 16) Adicionar tarefa</a>
         </div>
     </div>

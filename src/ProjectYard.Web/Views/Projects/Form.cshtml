@@ -32,7 +32,7 @@
             <div class="fld" style="grid-column:1/-1;"><label asp-for="Notes">Observações</label><div class="fld__box" style="align-items:flex-start;"><textarea asp-for="Notes" rows="2" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;resize:vertical;"></textarea></div></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
-            <button class="btn btn-primary" type="submit">Guardar</button>
+            <button class="btn btn-primary" type="submit">@if (!editing) { @Icons.Render("plus", 15) } @(editing ? "Guardar" : "Criar projeto")</button>
             <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
         </div>
     </form>

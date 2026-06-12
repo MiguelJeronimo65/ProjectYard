@@ -47,6 +47,9 @@ public static class Icons
         ["chevL"] = new[] { "m15 18-6-6 6-6" },
         ["chevR"] = new[] { "m9 18 6-6-6-6" },
         ["spark2"] = new[] { "M12 3v4", "M12 17v4", "M3 12h4", "M17 12h4" },
+        ["dots"] = new[] { "M5 12h.01", "M12 12h.01", "M19 12h.01" },
+        ["target"] = new[] { "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z", "M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" },
+        ["kanban"] = new[] { "M6 3v12", "M12 3v8", "M18 3v16", "M4 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0", "M10 14a2 2 0 1 0 4 0a2 2 0 1 0-4 0", "M16 21a2 2 0 1 0 4 0a2 2 0 1 0-4 0" },
     };
 
     public static IHtmlContent Render(string name, int size = 20)
