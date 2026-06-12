@@ -27,12 +27,23 @@ public class HomeController : Controller
         var vencido = invoices.Where(i => i.Status == "Vencido").Sum(i => i.Amount);
         int Pct(decimal n) => faturado <= 0 ? 0 : (int)Math.Round(n / faturado * 100);
 
-        // Receita por mês (k€) a partir das faturas emitidas
-        var revenue = invoices.Where(i => i.IssuedAt != null)
+        // Receita por mês / trimestre / ano (k€) a partir das faturas emitidas — alimenta o toggle do gráfico.
+        var months = new[] { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
+        var dated = invoices.Where(i => i.IssuedAt != null).ToList();
+        var revenue = dated
             .GroupBy(i => new { i.IssuedAt!.Value.Year, i.IssuedAt!.Value.Month })
             .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
-            .Select(g => (M: new[] { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" }[g.Key.Month - 1],
-                          V: (double)(g.Sum(x => x.Amount) / 1000m)))
+            .Select(g => (M: months[g.Key.Month - 1], V: (double)(g.Sum(x => x.Amount) / 1000m)))
+            .ToList();
+        var revenueTri = dated
+            .GroupBy(i => new { i.IssuedAt!.Value.Year, Q = (i.IssuedAt!.Value.Month - 1) / 3 + 1 })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Q)
+            .Select(g => (M: "T" + g.Key.Q, V: (double)(g.Sum(x => x.Amount) / 1000m)))
+            .ToList();
+        var revenueAno = dated
+            .GroupBy(i => i.IssuedAt!.Value.Year)
+            .OrderBy(g => g.Key)
+            .Select(g => (M: g.Key.ToString(), V: (double)(g.Sum(x => x.Amount) / 1000m)))
             .ToList();
 
         // Projetos em foco (Em curso / Em risco) com contagens reais
@@ -82,6 +93,8 @@ public class HomeController : Controller
             PendentePct = Pct(pendente),
             VencidoPct = Pct(vencido),
             Revenue = revenue,
+            RevenueTri = revenueTri,
+            RevenueAno = revenueAno,
             Focus = focus,
             Workload = workload,
             Approvals = approvals,

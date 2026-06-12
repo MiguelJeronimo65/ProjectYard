@@ -22,6 +22,8 @@ public class DashboardViewModel
     public int VencidoPct { get; set; }
 
     public List<(string M, double V)> Revenue { get; set; } = new();
+    public List<(string M, double V)> RevenueTri { get; set; } = new();
+    public List<(string M, double V)> RevenueAno { get; set; } = new();
     public List<FocusProject> Focus { get; set; } = new();
     public List<WorkloadRow> Workload { get; set; } = new();
     public List<Approval> Approvals { get; set; } = new();

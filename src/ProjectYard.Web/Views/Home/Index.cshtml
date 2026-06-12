@@ -51,19 +51,50 @@
         <div class="card card-pad">
             <div class="card-h">
                 <div><h3>Faturação</h3><span class="sub">Recebido vs. faturado · 2026</span></div>
-                <a class="btn btn-soft btn-sm card-h more" asp-controller="Reports" asp-action="Index">Relatórios @Icons.Render("arrowRight", 14)</a>
+                <div class="card-h more" style="display:flex;align-items:center;gap:8px;">
+                    <div class="seg" id="revSeg">
+                        <button type="button" class="active" data-p="m" onclick="setRevPeriod('m')">Mensal</button>
+                        <button type="button" data-p="t" onclick="setRevPeriod('t')">Trimestre</button>
+                        <button type="button" data-p="a" onclick="setRevPeriod('a')">Ano</button>
+                    </div>
+                    <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Index">Relatórios @Icons.Render("arrowRight", 14)</a>
+                </div>
             </div>
+            @{
+                string FullMonth(string m) => m switch { "Jan" => "Janeiro", "Fev" => "Fevereiro", "Mar" => "Março", "Abr" => "Abril", "Mai" => "Maio", "Jun" => "Junho", "Jul" => "Julho", "Ago" => "Agosto", "Set" => "Setembro", "Out" => "Outubro", "Nov" => "Novembro", "Dez" => "Dezembro", _ => m };
+                string HeadVal(List<(string M, double V)> s) => s.Count > 0 ? "€" + (s[^1].V * 1000).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) : "€0";
+                string capM = Model.Revenue.Count > 0 ? "faturado em " + FullMonth(Model.Revenue[^1].M) : "sem faturação";
+                string capT = Model.RevenueTri.Count > 0 ? "faturado no " + Model.RevenueTri[^1].M.Replace("T", "") + ".º trimestre" : "sem faturação";
+                string capA = Model.RevenueAno.Count > 0 ? "faturado em " + Model.RevenueAno[^1].M : "sem faturação";
+            }
             <div style="display:flex;gap:28px;align-items:flex-end;">
                 <div>
-                    <div class="num" style="font-size:32px;font-weight:700;letter-spacing:-0.02em;">@(Model.Revenue.Count > 0 ? "€" + (Model.Revenue[^1].V * 1000).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) : "€0")</div>
-                    <div class="muted" style="font-size:13px;font-weight:600;">faturado no último mês</div>
+                    <div class="num" id="revHead" style="font-size:32px;font-weight:700;letter-spacing:-0.02em;">@HeadVal(Model.Revenue)</div>
+                    <div class="muted" id="revCap" style="font-size:13px;font-weight:600;">@capM</div>
                     <div style="display:flex;gap:16px;margin-top:16px;">
                         <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:11px;height:11px;border-radius:4px;background:var(--accent);"></span>Recebido</span>
                         <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:11px;height:11px;border-radius:4px;background:var(--accent-soft2);"></span>Em aberto</span>
                     </div>
                 </div>
-                <div style="flex:1;">@Components.BarChart(Model.Revenue, 150)</div>
+                <div style="flex:1;">
+                    <div data-rev="m">@Components.BarChart(Model.Revenue, 150)</div>
+                    <div data-rev="t" style="display:none;">@Components.BarChart(Model.RevenueTri, 150)</div>
+                    <div data-rev="a" style="display:none;">@Components.BarChart(Model.RevenueAno, 150)</div>
+                </div>
             </div>
+            <script>
+                var revData = {
+                    m: { head: '@HeadVal(Model.Revenue)', cap: '@capM' },
+                    t: { head: '@HeadVal(Model.RevenueTri)', cap: '@capT' },
+                    a: { head: '@HeadVal(Model.RevenueAno)', cap: '@capA' },
+                };
+                function setRevPeriod(p) {
+                    document.querySelectorAll('[data-rev]').forEach(d => d.style.display = d.dataset.rev === p ? '' : 'none');
+                    document.querySelectorAll('#revSeg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+                    document.getElementById('revHead').textContent = revData[p].head;
+                    document.getElementById('revCap').textContent = revData[p].cap;
+                }
+            </script>
         </div>
         <div class="card card-pad">
             <div class="card-h"><div><h3>Estado da faturação</h3></div><a class="btn btn-soft btn-sm card-h more" asp-controller="Payments" asp-action="Index">Financeiro @Icons.Render("arrowRight", 14)</a></div>
@@ -148,7 +179,9 @@
                                 <div style="font-weight:700;font-size:13px;">@a.Title</div>
                                 <div class="muted-3" style="font-size:11.5px;font-weight:600;">@(a.Project?.Code ?? "—") · @a.Type</div>
                             </div>
-                            <span class="badge @(a.Priority == "Alta" ? "b-red" : "b-amber")">@a.Priority</span>
+                            <form asp-controller="Approvals" asp-action="Approve" asp-route-id="@a.Id" asp-route-returnUrl="@Url.Action("Index","Home")" method="post" style="margin:0;">
+                                <button class="btn btn-primary btn-sm" type="submit" style="padding:7px 11px;" title="Aprovar">@Icons.Render("check", 14)</button>
+                            </form>
                         </div>
                     }
                     @if (Model.Approvals.Count == 0) { <div class="muted" style="font-size:13px;">Sem aprovações pendentes.</div> }

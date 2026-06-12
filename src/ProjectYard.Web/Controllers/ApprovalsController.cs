@@ -35,7 +35,7 @@ public class ApprovalsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Approve(long id)
+    public async Task<IActionResult> Approve(long id, string? returnUrl = null)
     {
         var a = await _db.Approvals.FirstOrDefaultAsync(x => x.Id == id);
         if (a is null) return NotFound();
@@ -44,6 +44,7 @@ public class ApprovalsController : Controller
         foreach (var s in steps) { s.State = "done"; s.ActedAt ??= DateTime.Now; }
         await _db.SaveChangesAsync();
         TempData["ok"] = $"“{a.Title}” aprovado.";
+        if (Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl!);
         return RedirectToAction(nameof(Index));
     }
 
