@@ -13,3 +13,12 @@ public class ChatThreadVm
 
     public string DisplayName => Channel.Type == "channel" ? "#" + Channel.Name : (OtherNames.FirstOrDefault() ?? "Conversa direta");
 }
+
+/// <summary>Reações agregadas de uma mensagem: emoji → (contagem, fui-eu, quem reagiu).</summary>
+public class ChatReactionVm
+{
+    public string Emoji { get; set; } = "";
+    public int Count { get; set; }
+    public bool Mine { get; set; }
+    public List<string> Names { get; set; } = new();
+}
