@@ -9,6 +9,13 @@ public class ApprovalsController : Controller
     private readonly AppDbContext _db;
     public ApprovalsController(AppDbContext db) => _db = db;
 
+    /// <summary>Motivos predefinidos da devolução (dropdown do protótipo).</summary>
+    public static readonly string[] ReturnReasons =
+    {
+        "Falta informação", "Erro técnico", "Fora do âmbito", "Orçamento excede o previsto",
+        "Aguardar decisão do cliente", "Outro",
+    };
+
     public async Task<IActionResult> Index(string? tipo, long? sel)
     {
         var all = await _db.Approvals
@@ -17,6 +24,14 @@ public class ApprovalsController : Controller
             .OrderByDescending(a => a.Status == "Aberta").ThenByDescending(a => a.CreatedAt)
             .ToListAsync();
         ViewBag.All = all;
+
+        // KPI "Aprovadas (semana)": decididas como Aprovada nos últimos 7 dias.
+        var semanaInicio = DateTime.Now.AddDays(-7);
+        ViewBag.AprovadasSemana = all.Count(a => a.Status == "Aprovada" && a.DecidedAt != null && a.DecidedAt >= semanaInicio);
+        ViewBag.Devolvidas = all.Count(a => a.Status == "Devolvida");
+        // Histórico de decisões (já decididas), mais recente primeiro.
+        ViewBag.Historico = all.Where(a => a.Status != "Aberta")
+            .OrderByDescending(a => a.DecidedAt ?? a.CreatedAt).Take(8).ToList();
         ViewBag.Tipo = string.IsNullOrEmpty(tipo) ? "Todos" : tipo;
         var list = ViewBag.Tipo == "Todos" ? all : all.Where(a => a.Type == (string)ViewBag.Tipo).ToList();
         ViewBag.List = list;
@@ -40,6 +55,7 @@ public class ApprovalsController : Controller
         var a = await _db.Approvals.FirstOrDefaultAsync(x => x.Id == id);
         if (a is null) return NotFound();
         a.Status = "Aprovada";
+        a.DecidedAt = DateTime.Now;
         var steps = await _db.Set<ProjectYard.Data.Entities.ApprovalStep>().Where(s => s.ApprovalId == id).ToListAsync();
         foreach (var s in steps) { s.State = "done"; s.ActedAt ??= DateTime.Now; }
         await _db.SaveChangesAsync();
@@ -50,11 +66,13 @@ public class ApprovalsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Return(long id, string? reason)
+    public async Task<IActionResult> Return(long id, string? motivo, string? reason)
     {
         var a = await _db.Approvals.FirstOrDefaultAsync(x => x.Id == id);
         if (a is null) return NotFound();
         a.Status = "Devolvida";
+        a.DecidedAt = DateTime.Now;
+        a.ReturnReason = ReturnReasons.Contains(motivo) ? motivo : null;
         if (!string.IsNullOrWhiteSpace(reason))
             a.Note = string.IsNullOrEmpty(a.Note) ? $"Devolvido: {reason.Trim()}" : a.Note + $"\nDevolvido: {reason.Trim()}";
         await _db.SaveChangesAsync();

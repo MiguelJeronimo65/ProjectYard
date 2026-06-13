@@ -9,8 +9,10 @@
     string TypeTag(string t) => t == "Pagamento" ? "b-gold" : t == "Change Request" ? "b-blue" : "b-violet";
     string TypeIcon(string t) => t == "Pagamento" ? "euro" : t == "Change Request" ? "alert" : "layers";
     int aguardar = all.Count(a => a.Status == "Aberta");
-    int aprovadas = all.Count(a => a.Status == "Aprovada");
-    int devolvidas = all.Count(a => a.Status == "Devolvida");
+    int aprovadasSemana = ViewBag.AprovadasSemana;
+    int devolvidas = ViewBag.Devolvidas;
+    var historico = (List<Approval>)ViewBag.Historico;
+    var motivos = ProjectYard.Web.Controllers.ApprovalsController.ReturnReasons;
     int PendCount(string t) => all.Count(a => (t == "Todos" || a.Type == t) && a.Status == "Aberta");
 }
 <div class="content">
@@ -22,7 +24,7 @@
         @foreach (var (icon, c, bg, n, l) in new[]
         {
             ("shield", "var(--warning)", "var(--warning-soft)", aguardar.ToString(), "A aguardar decisão"),
-            ("check", "var(--success)", "var(--success-soft)", aprovadas.ToString(), "Aprovadas"),
+            ("check", "var(--success)", "var(--success-soft)", aprovadasSemana.ToString(), "Aprovadas (semana)"),
             ("x", "var(--danger)", "var(--danger-soft)", devolvidas.ToString(), "Devolvidas"),
             ("clock", "var(--info)", "var(--info-soft)", "6h", "Tempo médio resposta"),
         })
@@ -130,9 +132,33 @@
                 }
                 else
                 {
-                    <div class="badge @(current.Status == "Aprovada" ? "b-green" : "b-amber")" style="width:fit-content;"><span class="bdot"></span>@current.Status</div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <div class="badge @(current.Status == "Aprovada" ? "b-green" : "b-amber")" style="width:fit-content;"><span class="bdot"></span>@current.Status</div>
+                        @if (current.Status == "Devolvida" && !string.IsNullOrEmpty(current.ReturnReason)) { <span class="muted" style="font-size:13px;font-weight:600;">Motivo: <b>@current.ReturnReason</b></span> }
+                        @if (current.DecidedAt is { } dd) { <span class="muted-3" style="font-size:12px;font-weight:600;margin-left:auto;">@dd.ToString("dd MMM yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))</span> }
+                    </div>
                 }
             </div>
+
+            @if (historico.Count > 0)
+            {
+                <div class="card card-pad" style="margin-top:20px;">
+                    <div class="card-h"><div><h3 style="font-size:14.5px;">Histórico de decisões</h3></div></div>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        @foreach (var h in historico)
+                        {
+                            <div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--border);">
+                                <span style="width:30px;height:30px;border-radius:8px;background:@(h.Status == "Aprovada" ? "var(--success-soft)" : "var(--warning-soft)");color:@(h.Status == "Aprovada" ? "var(--success)" : "var(--warning)");display:grid;place-items:center;flex-shrink:0;">@Icons.Render(h.Status == "Aprovada" ? "check" : "x", 15)</span>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@h.Title</div>
+                                    <div class="muted-3" style="font-size:11.5px;font-weight:600;">@h.Status@(h.Status == "Devolvida" && !string.IsNullOrEmpty(h.ReturnReason) ? " · " + h.ReturnReason : "")</div>
+                                </div>
+                                @if (h.DecidedAt is { } hd) { <span class="muted-3" style="font-size:11px;font-weight:600;">@hd.ToString("dd MMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))</span> }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
     </div>
 </div>
@@ -148,7 +174,8 @@
             </div>
             <form asp-action="Return" asp-route-id="@current.Id" method="post">
                 <div class="modal-body">
-                    <div class="fld"><label>Motivo da devolução</label><div class="fld__box" style="align-items:flex-start;"><textarea name="reason" rows="3" placeholder="Explica o que precisa de ser alterado…" style="flex:1;border:none;outline:none;background:transparent;font-size:13.5px;resize:vertical;padding:11px 0;"></textarea></div></div>
+                    <div class="fld"><label>Motivo</label><div class="fld__box" style="height:46px;"><select name="motivo" required style="border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);">@foreach (var mv in motivos) { <option>@mv</option> }</select></div></div>
+                    <div class="fld"><label>Nota para @(current.RequestedByUser?.Name.Split(' ').FirstOrDefault() ?? "o autor") (opcional)</label><div class="fld__box" style="align-items:flex-start;"><textarea name="reason" rows="3" placeholder="Detalhe o que precisa de ser alterado…" style="flex:1;border:none;outline:none;background:transparent;font-size:13.5px;resize:vertical;padding:11px 0;"></textarea></div></div>
                 </div>
                 <div class="modal-foot">
                     <button class="btn btn-ghost" type="button" onclick="document.getElementById('retOv').style.display='none'">Cancelar</button>

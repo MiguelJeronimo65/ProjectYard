@@ -25,6 +25,10 @@ public partial class Approval
 
     public string? Note { get; set; }
 
+    public string? ReturnReason { get; set; }   // motivo da devolução (dropdown)
+
+    public DateTime? DecidedAt { get; set; }     // data da decisão (KPI "aprovadas na semana")
+
     public DateTime CreatedAt { get; set; }
 
     public virtual ICollection<ApprovalStep> ApprovalSteps { get; set; } = new List<ApprovalStep>();

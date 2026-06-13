@@ -62,6 +62,10 @@ public partial class AppDbContext
         // tasks.tags (coluna acrescentada pelo delta 06-12)
         modelBuilder.Entity<Entities.Task>().Property(e => e.Tags).HasMaxLength(200).HasColumnName("tags");
 
+        // approvals: return_reason + decided_at (delta 06-12)
+        modelBuilder.Entity<Approval>().Property(e => e.ReturnReason).HasMaxLength(160).HasColumnName("return_reason");
+        modelBuilder.Entity<Approval>().Property(e => e.DecidedAt).HasColumnType("datetime").HasColumnName("decided_at");
+
         modelBuilder.Entity<TaskChecklistItem>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");
