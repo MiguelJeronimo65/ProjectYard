@@ -21,6 +21,7 @@ builder.Services
     {
         options.User.RequireUniqueEmail = false; // email único por tenant (multi-tenant), não global
         options.SignIn.RequireConfirmedAccount = false;
+        options.Password.RequiredLength = 8;     // alinhado com a UI das Definições (barra de força)
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();

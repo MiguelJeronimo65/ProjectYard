@@ -137,19 +137,31 @@
         {
             <div class="card card-pad">
                 <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Perfil pessoal</h3><span class="sub" style="display:block;margin-top:3px;">A tua informação dentro do workspace</span></div></div>
-                <form asp-action="UpdateProfile" method="post">
-                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
-                        @Components.Avatar(me.Name, 66)
-                        <div style="display:flex;gap:9px;">
-                            <button class="btn btn-soft btn-sm" type="button" onclick="PYToast && PYToast('Upload de foto — disponível em breve')">@Icons.Render("arrowUp", 14) Mudar foto</button>
-                            <button class="btn btn-ghost btn-sm" type="button" style="color:var(--text-3);">Remover</button>
-                        </div>
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+                    @Components.Avatar(me.Name, me.AvatarUrl, 66)
+                    <div style="display:flex;gap:9px;align-items:center;">
+                        <form asp-action="UploadAvatar" method="post" enctype="multipart/form-data" style="margin:0;" data-no-loader>
+                            <input type="file" name="foto" id="fotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="this.form.submit()" />
+                            <button class="btn btn-soft btn-sm" type="button" onclick="document.getElementById('fotoInput').click()">@Icons.Render("arrowUp", 14) Mudar foto</button>
+                        </form>
+                        @if (me.AvatarUrl != null)
+                        {
+                            <form asp-action="RemoveAvatar" method="post" style="margin:0;"><button class="btn btn-ghost btn-sm" type="submit" style="color:var(--text-3);">Remover</button></form>
+                        }
                     </div>
+                </div>
+                <form asp-action="UpdateProfile" method="post">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
                         <div class="fld" style="margin-bottom:0;"><label>Nome</label><div class="fld__box"><input name="name" value="@me.Name" required /></div></div>
-                        <div class="fld" style="margin-bottom:0;"><label>Cargo</label><div class="fld__box"><input name="funcao" value="@me.Funcao" placeholder="Ex.: Arquiteto Sénior" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Cargo</label><div class="fld__box">
+                            @{
+                                var cargos = lookups.Where(l => l.Kind == "cargo" && l.Active == true).OrderBy(l => l.SortOrder).Select(l => l.Value).ToList();
+                                if (!string.IsNullOrEmpty(me.Funcao) && !cargos.Contains(me.Funcao)) cargos.Insert(0, me.Funcao);
+                            }
+                            <select name="funcao" style="@sel()"><option value="">— sem cargo —</option>@foreach (var c in cargos) { <option selected="@(me.Funcao == c)">@c</option> }</select>@Icons.Render("chevD", 16)
+                        </div></div>
                         <div class="fld" style="margin-bottom:0;"><label>Email</label><div class="fld__box">@Icons.Render("mail", 16)<input name="email" type="email" value="@me.Email" /></div></div>
-                        <div class="fld" style="margin-bottom:0;"><label>Telefone</label><div class="fld__box"><input name="phone" value="@me.PhoneNumber" placeholder="+351 …" /></div></div>
+                        <div class="fld" style="margin-bottom:0;"><label>Telefone</label><div class="fld__box"><input name="phone" type="tel" value="@me.PhoneNumber" placeholder="+351 …" inputmode="tel" pattern="^\+?[0-9 ()\-]{6,20}$" title="Só dígitos, espaços e +/()-" oninput="this.value=this.value.replace(/[^0-9+ ()\-]/g,'')" /></div></div>
                         <div class="fld" style="margin-bottom:0;"><label>Idioma</label><div class="fld__box">
                             <select name="locale" style="@sel()">@foreach (var o in new[] { "Português (PT)", "English", "Español" }) { <option selected="@(UP("locale", "Português (PT)") == o)">@o</option> }</select>@Icons.Render("chevD", 16)
                         </div></div>
@@ -169,15 +181,28 @@
             {
                 <div class="card card-pad">
                     <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Dados do workspace</h3><span class="sub" style="display:block;margin-top:3px;">Identidade do gabinete usada em propostas e faturas</span></div></div>
-                    <form asp-action="UpdateWorkspace" method="post">
-                        <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:22px;">
+                        @if (P("tenant.logo").Length > 0)
+                        {
+                            <span class="avatar sq" style="width:60px;height:60px;border-radius:14px;overflow:hidden;background:#fff;"><img src="@P("tenant.logo")" alt="@tenant.Name" style="width:100%;height:100%;object-fit:cover;display:block;" /></span>
+                        }
+                        else
+                        {
                             <span class="avatar sq" style="width:60px;height:60px;border-radius:14px;background:@(tenant.PrimaryColor ?? "#2c3e51");font-size:20px;">@Components.Initials(tenant.Name)</span>
-                            <div>
-                                <div style="font-weight:700;font-size:15px;">@tenant.Name</div>
-                                <div class="muted-3" style="font-size:12.5px;font-weight:600;">Logótipo apresentado a clientes · PNG ou SVG</div>
-                                <button class="btn btn-soft btn-sm" type="button" style="margin-top:9px;" onclick="PYToast && PYToast('Upload de logótipo — disponível em breve')">@Icons.Render("arrowUp", 14) Carregar logótipo</button>
-                            </div>
+                        }
+                        <div>
+                            <div style="font-weight:700;font-size:15px;">@tenant.Name</div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;">Logótipo apresentado a clientes · JPG, PNG ou WebP</div>
+                            @if (isAdmin)
+                            {
+                                <form asp-action="UploadLogo" method="post" enctype="multipart/form-data" style="margin:9px 0 0;" data-no-loader>
+                                    <input type="file" name="logo" id="logoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="this.form.submit()" />
+                                    <button class="btn btn-soft btn-sm" type="button" onclick="document.getElementById('logoInput').click()">@Icons.Render("arrowUp", 14) Carregar logótipo</button>
+                                </form>
+                            }
                         </div>
+                    </div>
+                    <form asp-action="UpdateWorkspace" method="post">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
                             <div class="fld" style="margin-bottom:0;"><label>Nome do gabinete</label><div class="fld__box"><input name="name" value="@tenant.Name" required disabled="@(!isAdmin)" /></div></div>
                             <div class="fld" style="margin-bottom:0;"><label>NIF</label><div class="fld__box"><input name="nif" value="@P("tenant.nif")" placeholder="509 482 117" disabled="@(!isAdmin)" /></div></div>
@@ -214,7 +239,7 @@
         else if (section == "seguranca")
         {
             <div class="card card-pad">
-                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Palavra-passe</h3><span class="sub" style="display:block;margin-top:3px;">Recomendamos uma palavra-passe forte e única</span></div></div>
+                <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Palavra-passe</h3><span class="sub" style="display:block;margin-top:3px;">Mínimo 8 caracteres, com maiúscula, minúscula, dígito e símbolo</span></div></div>
                 <form asp-action="ChangePassword" method="post">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
                         <div class="fld" style="margin-bottom:0;grid-column:1/-1;max-width:360px;"><label>Palavra-passe atual</label><div class="fld__box">@Icons.Render("lock", 16)<input name="current" type="password" required autocomplete="current-password" /></div></div>
@@ -238,7 +263,7 @@
                 <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r-sm);">
                     <div style="width:42px;height:42px;border-radius:11px;background:var(--success-soft);color:var(--success);display:grid;place-items:center;">@Icons.Render("shield", 22)</div>
                     <div style="flex:1;">
-                        <div style="font-weight:700;font-size:14px;">App de autenticação</div>
+                        <div style="font-weight:700;font-size:14px;">App de autenticação <span class="badge b-amber" style="padding:1px 7px;font-size:10px;margin-left:5px;">em desenvolvimento</span></div>
                         <div class="muted-3" id="twofaSub" style="font-size:12.5px;font-weight:600;">@(twofa ? "Ativa · Google Authenticator" : "Desativada")</div>
                     </div>
                     <span class="badge b-green" id="twofaBadge" style="display:@(twofa ? "inline-flex" : "none");">Ativa</span>
@@ -247,7 +272,7 @@
                 <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--surface-2);border-radius:var(--r-sm);margin-top:12px;">
                     <div style="width:42px;height:42px;border-radius:11px;background:var(--info-soft);color:var(--info);display:grid;place-items:center;">@Icons.Render("sms", 22)</div>
                     <div style="flex:1;">
-                        <div style="font-weight:700;font-size:14px;">Código por SMS</div>
+                        <div style="font-weight:700;font-size:14px;">Código por SMS <span class="badge b-amber" style="padding:1px 7px;font-size:10px;margin-left:5px;">em desenvolvimento</span></div>
                         <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(string.IsNullOrEmpty(me.PhoneNumber) ? "Sem número configurado — adiciona o telefone no perfil" : "Enviado para " + me.PhoneNumber)</div>
                     </div>
                     <button class="btn btn-ghost btn-sm" type="button" onclick="PYToast && PYToast('2FA por SMS chega com o gateway (Fase 3)')">Configurar</button>
@@ -394,7 +419,7 @@
                         <input type="hidden" name="channel" id="invChannel" value="email" />
                         <div class="seg">
                             <button type="button" id="invChEmail" class="active" onclick="setInvChannel('email')">@Icons.Render("mail", 14) Email</button>
-                            <button type="button" id="invChSms" onclick="setInvChannel('sms')">@Icons.Render("sms", 14) SMS</button>
+                            <button type="button" id="invChSms" onclick="setInvChannel('sms')" title="Envio real de SMS em desenvolvimento — o convite fica registado">@Icons.Render("sms", 14) SMS <span class="badge b-amber" style="padding:1px 6px;font-size:9.5px;margin-left:4px;">em desenvolvimento</span></button>
                         </div>
                         <div class="fld__box" style="padding:0 12px;min-width:220px;flex:1;">
                             <span id="invIcon">@Icons.Render("mail", 15)</span>
@@ -430,7 +455,13 @@
                             <td style="text-align:right;">
                                 @if (prot)
                                 {
-                                    <span title="Protegido — não pode ser removido" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);font-weight:700;font-size:12px;">@Icons.Render("lock", 14) Protegido</span>
+                                    <span style="display:inline-flex;align-items:center;gap:10px;">
+                                        @if (me.IsSuperadmin && !isMe && u.Active && u.Status == "Ativo")
+                                        {
+                                            <form action="/conta/entrar-como/@u.Id" method="post" style="margin:0;display:inline;">@Html.AntiForgeryToken()<button class="btn btn-ghost btn-sm" type="submit" title="Ver a aplicação como esta pessoa">@Icons.Render("eye", 14) Entrar como</button></form>
+                                        }
+                                        <span title="Protegido — não pode ser removido" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);font-weight:700;font-size:12px;">@Icons.Render("lock", 14) Protegido</span>
+                                    </span>
                                 }
                                 else if (u.Status == "Pendente" && isAdmin)
                                 {
@@ -452,6 +483,10 @@
                                                 <input type="hidden" name="userId" value="@u.Id" />
                                                 <button class="btn btn-ghost btn-sm" type="submit" style="width:100%;justify-content:center;color:@(u.Active ? "var(--danger)" : "var(--success)");">@(u.Active ? "Desativar acesso" : "Reativar acesso")</button>
                                             </form>
+                                            @if (me.IsSuperadmin && u.Active && u.Status == "Ativo")
+                                            {
+                                                <form action="/conta/entrar-como/@u.Id" method="post" style="margin:8px 0 0;">@Html.AntiForgeryToken()<button class="btn btn-ghost btn-sm" type="submit" style="width:100%;justify-content:center;" title="Ver a aplicação como esta pessoa">@Icons.Render("eye", 14) Entrar como</button></form>
+                                            }
                                         </div>
                                     </details>
                                 }
@@ -513,10 +548,16 @@
             <div style="display:flex;align-items:center;gap:11px;padding:12px 16px;background:var(--accent-soft);border-radius:var(--r-sm);font-size:13px;font-weight:600;color:var(--accent-700);">
                 @Icons.Render("shield", 16) <span>Tabelas de referência do workspace. Só <b>Superadmin</b> e <b>Administrador</b> podem editar; renomear não afeta o histórico (as tarefas guardam a referência).</span>
             </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                @foreach (var (anchor, lbl) in new[] { ("lk-fase", "Fases do projeto"), ("lk-prioridade", "Prioridades"), ("lk-estado-tarefa", "Estados de tarefa"), ("lk-tipo-hora", "Tipos de hora"), ("lk-tipo-evento", "Tipos de evento"), ("lk-cargo", "Cargos") })
+                {
+                    <a class="chip" href="#@anchor" style="text-decoration:none;">@lbl</a>
+                }
+            </div>
             async System.Threading.Tasks.Task LookupCard(string title, string sub, string kind)
             {
                     var items = lookups.Where(l => l.Kind == kind).OrderBy(l => l.SortOrder).ToList();
-                    <div class="card card-pad">
+                    <div class="card card-pad" id="lk-@kind" style="scroll-margin-top:90px;">
                         <div class="card-h" style="margin-bottom:14px;align-items:flex-start;"><div><h3>@title</h3><span class="sub" style="display:block;margin-top:3px;">@sub</span></div></div>
                         <table class="tbl">
                             <thead><tr><th style="width:54px;">Cor</th><th>Nome</th><th style="width:70px;text-align:center;">Ordem</th><th style="width:80px;text-align:center;">Ativo</th><th style="width:46px;"></th></tr></thead>
@@ -578,6 +619,7 @@
                 @{ await LookupCard("Tipos de hora", "Categorias no registo de horas", "tipo-hora"); }
                 @{ await LookupCard("Tipos de evento", "Filtros e cores do calendário", "tipo-evento"); }
             </div>
+            await LookupCard("Cargos", "Funções da equipa — usadas no perfil e nos convites", "cargo");
         }
         @* ===================== NOTIFICAÇÕES ===================== *@
         else if (section == "notificacoes")
@@ -589,7 +631,7 @@
                         <tr>
                             <th>Evento</th>
                             <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("mail", 14) Email</span></th>
-                            <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("sms", 14) SMS</span></th>
+                            <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;" title="Envio real de SMS em desenvolvimento">@Icons.Render("sms", 14) SMS <span class="badge b-amber" style="padding:1px 5px;font-size:9px;">em dev.</span></span></th>
                             <th style="text-align:center;width:110px;"><span style="display:inline-flex;align-items:center;gap:6px;">@Icons.Render("bell", 14) Portal</span></th>
                         </tr>
                     </thead>
@@ -650,6 +692,7 @@
                     <div>
                         <h3 style="margin:0;font-family:var(--font-display);font-size:17px;">Integrações</h3>
                         <span class="sub" id="integSub" style="color:var(--text-3);font-size:13px;font-weight:600;">@integrOn.Count ligadas · liga o ProjectYard às tuas ferramentas</span>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:3px;">As ligações reais (OAuth/API) estão em desenvolvimento — o estado que escolheres fica guardado.</div>
                     </div>
                     <button class="btn btn-ghost" type="button" style="margin-left:auto;" onclick="PYToast && PYToast('Diretório de integrações — em breve')">@Icons.Render("search", 15) Explorar diretório</button>
                 </div>
@@ -753,8 +796,16 @@
         document.getElementById('invChEmail').classList.toggle('active', ch === 'email');
         document.getElementById('invChSms').classList.toggle('active', ch === 'sms');
         var inp = document.getElementById('invContact');
+        inp.value = '';
         inp.placeholder = ch === 'email' ? 'convite@email.pt' : '+351 …';
         inp.type = ch === 'email' ? 'email' : 'tel';
+        if (ch === 'sms') {
+            inp.pattern = '^\\+?[0-9 ()\\-]{6,20}$';
+            inp.title = 'Só dígitos, espaços e +/()-';
+            inp.oninput = function () { this.value = this.value.replace(/[^0-9+ ()\-]/g, ''); };
+        } else {
+            inp.removeAttribute('pattern'); inp.removeAttribute('title'); inp.oninput = null;
+        }
     }
 
     // lookups

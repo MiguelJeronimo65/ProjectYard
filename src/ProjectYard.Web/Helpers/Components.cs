@@ -25,9 +25,17 @@ public static class Components
     }
 
     public static IHtmlContent Avatar(string? name, int size = 34, bool sq = false)
+        => Avatar(name, null, size, sq);
+
+    /// <summary>Avatar com foto (avatar_url) quando exista; senão iniciais coloridas.</summary>
+    public static IHtmlContent Avatar(string? name, string? photoUrl, int size = 34, bool sq = false)
     {
         var fs = size * 0.4;
         var cls = sq ? "avatar sq" : "avatar";
+        if (!string.IsNullOrWhiteSpace(photoUrl))
+            return new HtmlString(
+                $"<div class=\"{cls}\" title=\"{Esc(name)}\" style=\"width:{size}px;height:{size}px;overflow:hidden;background:var(--surface-2);\">" +
+                $"<img src=\"{Esc(photoUrl)}\" alt=\"{Esc(name)}\" style=\"width:100%;height:100%;object-fit:cover;display:block;\" /></div>");
         return new HtmlString(
             $"<div class=\"{cls}\" title=\"{Esc(name)}\" style=\"width:{size}px;height:{size}px;background:{Color(name)};font-size:{Fmt(fs)}px;\">{Esc(Initials(name))}</div>");
     }

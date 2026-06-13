@@ -16,6 +16,18 @@
     var tenantSub = isSuper ? "Acesso de plataforma" : (tenant != null ? "Plano " + tenant.Plan : "Workspace");
     var tenantColor = tenant?.PrimaryColor ?? "#2c3e51";
 
+    // Foto de perfil + logo do workspace + impersonate
+    string? myAvatar = null, tenantLogo = null;
+    var impersonatorName = User.FindFirstValue("impersonator_name");
+    try
+    {
+        if (long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var myId))
+            myAvatar = Db.Users.Where(u => u.Id == myId).Select(u => u.AvatarUrl).FirstOrDefault();
+        if (Db.CurrentTenantId is { } tlid)
+            tenantLogo = Db.Settings.Where(s => s.TenantId == tlid && s.Param == "tenant.logo").Select(s => s.Value).FirstOrDefault();
+    }
+    catch { /* sem BD não há foto/logo */ }
+
     // Badges com dados reais (no modo consola são agregados da plataforma)
     int tasksBadge = 0, delivBadge = 0, apprBadge = 0;
     try
@@ -103,7 +115,14 @@
 
         <div class="ws-wrap">
             <div class="user-chip" style="width:100%;margin-bottom:8px;">
-                <span class="avatar sq" style="width:34px;height:34px;background:@tenantColor;font-size:12.5px;">@Components.Initials(tenantName)</span>
+                @if (tenantLogo != null)
+                {
+                    <span class="avatar sq" style="width:34px;height:34px;overflow:hidden;background:#fff;"><img src="@tenantLogo" alt="@tenantName" style="width:100%;height:100%;object-fit:cover;display:block;" /></span>
+                }
+                else
+                {
+                    <span class="avatar sq" style="width:34px;height:34px;background:@tenantColor;font-size:12.5px;">@Components.Initials(tenantName)</span>
+                }
                 <div style="min-width:0;flex:1;text-align:left;">
                     <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@tenantName</div>
                     <div class="muted-3" style="font-size:11.5px;font-weight:600;">@tenantSub</div>
@@ -171,7 +190,14 @@
                 <button class="icon-btn" type="button" title="Notificações">@Icons.Render("bell", 19)<span class="dot"></span></button>
                 <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
                 <div class="user-chip" style="border:none;padding:6px 8px;">
-                    <span class="avatar" style="width:36px;height:36px;background:#233140;font-size:13px;">@Components.Initials(displayName)</span>
+                    @if (myAvatar != null)
+                    {
+                        <span class="avatar" style="width:36px;height:36px;overflow:hidden;background:var(--surface-2);"><img src="@myAvatar" alt="@displayName" style="width:100%;height:100%;object-fit:cover;display:block;" /></span>
+                    }
+                    else
+                    {
+                        <span class="avatar" style="width:36px;height:36px;background:#233140;font-size:13px;">@Components.Initials(displayName)</span>
+                    }
                     <div style="text-align:left;">
                         <div style="font-weight:700;font-size:13.5px;">@displayName</div>
                         @if (isSuper)
@@ -190,7 +216,17 @@
             </div>
         </header>
 
-        @if (inPlatformMode)
+        @if (impersonatorName != null)
+        {
+            <div class="platform-bar" style="background:var(--accent-soft);color:var(--accent-700);">
+                @Icons.Render("eye", 15)
+                <span>A ver como <b>@displayName</b> (sessão de @impersonatorName)</span>
+                <form asp-controller="Account" asp-action="StopImpersonation" method="post" style="margin:0;margin-left:auto;">
+                    <button type="submit">@Icons.Render("chevL", 14) Voltar à minha conta</button>
+                </form>
+            </div>
+        }
+        else if (inPlatformMode)
         {
             <div class="platform-bar">
                 @Icons.Render("shield", 15)
