@@ -25,6 +25,8 @@ public partial class Task
 
     public bool Overdue { get; set; }
 
+    public string? Tags { get; set; }   // etiquetas separadas por vírgula
+
     public DateTime CreatedAt { get; set; }
 
     public virtual ProjectPhase? Phase { get; set; }

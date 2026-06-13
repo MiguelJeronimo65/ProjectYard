@@ -9,8 +9,43 @@ public partial class AppDbContext
 {
     public virtual DbSet<ProjectStatusHistory> ProjectStatusHistories { get; set; }
 
+    public virtual DbSet<TaskChecklistItem> TaskChecklistItems { get; set; }
+
+    public virtual DbSet<TaskComment> TaskComments { get; set; }
+
     private static void ConfigureCustom(ModelBuilder modelBuilder)
     {
+        // tasks.tags (coluna acrescentada pelo delta 06-12)
+        modelBuilder.Entity<Entities.Task>().Property(e => e.Tags).HasMaxLength(200).HasColumnName("tags");
+
+        modelBuilder.Entity<TaskChecklistItem>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("task_checklist_items").UseCollation("utf8mb4_0900_ai_ci");
+            entity.HasIndex(e => e.TaskId, "ix_tci_task");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TaskId).HasColumnName("task_id");
+            entity.Property(e => e.Title).HasMaxLength(220).HasColumnName("title");
+            entity.Property(e => e.Done).HasColumnName("done");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.HasOne(d => d.Task).WithMany().HasForeignKey(d => d.TaskId).HasConstraintName("fk_tci_task");
+        });
+
+        modelBuilder.Entity<TaskComment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("task_comments").UseCollation("utf8mb4_0900_ai_ci");
+            entity.HasIndex(e => e.TaskId, "ix_tc_task");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TaskId).HasColumnName("task_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Body).HasColumnType("text").HasColumnName("body");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime").HasColumnName("created_at");
+            entity.HasOne(d => d.Task).WithMany().HasForeignKey(d => d.TaskId).HasConstraintName("fk_tc_task");
+        });
+        modelBuilder.Entity<TaskComment>().HasOne<Identity.ApplicationUser>().WithMany()
+            .HasForeignKey(e => e.UserId).HasConstraintName("fk_tc_user").OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<ProjectStatusHistory>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");

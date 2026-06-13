@@ -3,9 +3,12 @@
     ViewData["Title"] = "Tarefas";
     var people = (IEnumerable<dynamic>)ViewBag.People;
     var projects = (IEnumerable<dynamic>)ViewBag.Projects;
+    var checklist = (Dictionary<long, (int Done, int Total)>)ViewBag.Checklist ?? new();
+    var comments = (Dictionary<long, int>)ViewBag.Comments ?? new();
     long? fAssignee = ViewBag.FAssignee;
     string? fPrio = ViewBag.FPrio;
     long? fProject = ViewBag.FProject;
+    string[] TagsOf(ProjectYard.Data.Entities.Task t) => string.IsNullOrWhiteSpace(t.Tags) ? System.Array.Empty<string>() : t.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     string viewMode = ViewBag.View;
     bool anyFilter = fAssignee != null || !string.IsNullOrEmpty(fPrio) || fProject != null;
     string PrioTag(string pr) => pr == "Alta" ? "b-red" : pr == "Média" ? "b-amber" : "b-gray";
@@ -82,16 +85,28 @@
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         @foreach (var t in cards)
                         {
-                            <div class="card rise py-card" draggable="true" data-id="@t.Id"
-                                 style="padding:14px;cursor:grab;box-shadow:var(--sh-sm);">
+                            var ck = checklist.GetValueOrDefault(t.Id);
+                            var cc = comments.GetValueOrDefault(t.Id);
+                            var ckPct = ck.Total > 0 ? (int)Math.Round(ck.Done * 100.0 / ck.Total) : 0;
+                            <div class="card rise py-card" draggable="true" data-id="@t.Id" data-href="@Url.Action("Details", new { id = t.Id })"
+                                 style="padding:14px;cursor:pointer;box-shadow:var(--sh-sm);">
                                 <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                                     <span class="badge @PrioTag(t.Priority)"><span class="bdot"></span>@t.Priority</span>
                                     <span class="badge b-violet">@(t.Project?.Code ?? "")</span>
+                                    @foreach (var tg in TagsOf(t)) { <span class="badge b-violet" style="background:var(--primary-soft);">@tg</span> }
                                 </div>
                                 <div style="font-weight:700;font-size:14px;line-height:1.35;margin-bottom:12px;">@t.Title</div>
+                                @if (ck.Total > 0)
+                                {
+                                    <div style="margin-bottom:12px;">
+                                        <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:11.5px;font-weight:600;"><span class="muted-3">@Icons.Render("checkSquare", 12) Checklist</span><span class="num muted">@ck.Done/@ck.Total</span></div>
+                                        @Components.Progress(ckPct, thin: true)
+                                    </div>
+                                }
                                 <div style="display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:12.5px;font-weight:600;">
                                     <span style="display:inline-flex;align-items:center;gap:5px;color:@(t.Overdue ? "var(--danger)" : "var(--text-3)");">@Icons.Render("clock", 14)@Ui.Date(t.DueDate)</span>
                                     @if (t.Overdue) { <span class="badge b-red" style="font-size:10.5px;">Atraso</span> }
+                                    @if (cc > 0) { <span style="display:inline-flex;align-items:center;gap:4px;">@Icons.Render("message", 14)@cc</span> }
                                     <span style="margin-left:auto;">@Components.Avatar(t.Assignee?.Name, 28)</span>
                                 </div>
                             </div>
@@ -106,18 +121,20 @@
     {
         <div class="card">
             <table class="tbl">
-                <thead><tr><th>Tarefa</th><th>Projeto</th><th>Estado</th><th>Prioridade</th><th>Responsável</th><th>Prazo</th></tr></thead>
+                <thead><tr><th>Tarefa</th><th>Projeto</th><th>Estado</th><th>Prioridade</th><th>Responsável</th><th>Prazo</th><th style="text-align:center;">Checklist</th></tr></thead>
                 <tbody>
                 @foreach (var t in Model)
                 {
                     var col = cols.First(c => c.Item1 == t.State);
-                    <tr>
-                        <td style="max-width:280px;"><div style="font-weight:700;">@t.Title</div></td>
+                    var ck = checklist.GetValueOrDefault(t.Id);
+                    <tr style="cursor:pointer;" onclick="location.href='@Url.Action("Details", new { id = t.Id })'">
+                        <td style="max-width:280px;"><div style="font-weight:700;">@t.Title</div>@if (TagsOf(t).Length > 0) { <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">@foreach (var tg in TagsOf(t)) { <span class="badge b-violet" style="font-size:10px;background:var(--primary-soft);">@tg</span> }</div> }</td>
                         <td class="muted" style="font-weight:600;">@(t.Project?.Code ?? "—")</td>
                         <td><span style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;"><span style="width:8px;height:8px;border-radius:99px;background:@col.Item3;"></span>@col.Item2</span></td>
                         <td><span class="badge @PrioTag(t.Priority)"><span class="bdot"></span>@t.Priority</span></td>
                         <td><div style="display:flex;align-items:center;gap:8px;">@Components.Avatar(t.Assignee?.Name, 28)<span style="font-weight:600;font-size:13px;">@(t.Assignee?.Name.Split(' ').FirstOrDefault() ?? "—")</span></div></td>
                         <td class="@(t.Overdue ? "" : "muted")" style="font-weight:700;@(t.Overdue ? "color:var(--danger);" : "")">@Ui.Date(t.DueDate)</td>
+                        <td class="num muted" style="text-align:center;font-weight:700;">@(ck.Total > 0 ? $"{ck.Done}/{ck.Total}" : "—")</td>
                     </tr>
                 }
                 </tbody>
@@ -169,8 +186,10 @@
     // Drag & drop — move persistido via POST /Tasks/Move
     var dragged = null;
     document.querySelectorAll('.py-card').forEach(c => {
-        c.addEventListener('dragstart', e => { dragged = c; c.style.opacity = '.4'; e.dataTransfer.effectAllowed = 'move'; });
-        c.addEventListener('dragend', () => { if (dragged) dragged.style.opacity = '1'; dragged = null; resetCols(); });
+        c.__justDragged = false;
+        c.addEventListener('dragstart', e => { dragged = c; c.__justDragged = true; c.style.opacity = '.4'; e.dataTransfer.effectAllowed = 'move'; });
+        c.addEventListener('dragend', () => { if (dragged) dragged.style.opacity = '1'; dragged = null; resetCols(); setTimeout(() => { c.__justDragged = false; }, 60); });
+        c.addEventListener('click', () => { if (!c.__justDragged && c.dataset.href) location.href = c.dataset.href; });
     });
     function resetCols() {
         document.querySelectorAll('.py-col').forEach(col => { col.style.background = 'var(--surface-2)'; col.style.borderStyle = 'solid'; col.style.borderColor = 'var(--border)'; });
