@@ -13,8 +13,33 @@ public partial class AppDbContext
 
     public virtual DbSet<TaskComment> TaskComments { get; set; }
 
+    public virtual DbSet<Event> Events { get; set; }
+
     private static void ConfigureCustom(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Event>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("events").UseCollation("utf8mb4_0900_ai_ci");
+            entity.HasIndex(e => new { e.TenantId, e.EventDate }, "ix_event_tenant_date");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TenantId).HasColumnName("tenant_id");
+            entity.Property(e => e.ProjectId).HasColumnName("project_id");
+            entity.Property(e => e.Category).HasMaxLength(40).HasColumnName("category");
+            entity.Property(e => e.Title).HasMaxLength(220).HasColumnName("title");
+            entity.Property(e => e.EventDate).HasColumnName("event_date");
+            entity.Property(e => e.StartTime).HasColumnName("start_time");
+            entity.Property(e => e.EndTime).HasColumnName("end_time");
+            entity.Property(e => e.Location).HasMaxLength(200).HasColumnName("location");
+            entity.Property(e => e.Notes).HasMaxLength(255).HasColumnName("notes");
+            entity.Property(e => e.OwnerUserId).HasColumnName("owner_user_id");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime").HasColumnName("created_at");
+            entity.HasOne(d => d.Project).WithMany().HasForeignKey(d => d.ProjectId).HasConstraintName("fk_event_project");
+        });
+        modelBuilder.Entity<Event>().HasOne<Identity.ApplicationUser>().WithMany().HasForeignKey(e => e.OwnerUserId).HasConstraintName("fk_event_owner").OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Event>().HasOne<Identity.ApplicationUser>().WithMany().HasForeignKey(e => e.CreatedBy).HasConstraintName("fk_event_creator").OnDelete(DeleteBehavior.NoAction);
+
         // tasks.tags (coluna acrescentada pelo delta 06-12)
         modelBuilder.Entity<Entities.Task>().Property(e => e.Tags).HasMaxLength(200).HasColumnName("tags");
 
