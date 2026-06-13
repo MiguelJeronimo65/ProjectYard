@@ -126,7 +126,10 @@ public partial class AppDbContext
         modelBuilder.Entity<ChatReaction>().HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).HasConstraintName("fk_react_user").OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<ChatComplianceAccessLog>().HasOne(e => e.AccessedByUser).WithMany().HasForeignKey(e => e.AccessedByUserId).HasConstraintName("fk_ccal_user").OnDelete(DeleteBehavior.NoAction);
 
-        // (4) Isolamento multi-tenant (global query filters) — ver AppDbContext.Tenancy.cs.
+        // (4) Entidades acrescentadas à mão (database-first) — ver AppDbContext.Custom.cs.
+        ConfigureCustom(modelBuilder);
+
+        // (5) Isolamento multi-tenant (global query filters) — ver AppDbContext.Tenancy.cs.
         ApplyTenantFilters(modelBuilder);
     }
 }

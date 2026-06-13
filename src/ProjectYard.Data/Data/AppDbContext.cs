@@ -722,7 +722,7 @@ public partial class AppDbContext : Microsoft.AspNetCore.Identity.EntityFramewor
             entity.Property(e => e.StartReal).HasColumnName("start_real");
             entity.Property(e => e.Status)
                 .HasDefaultValueSql("'Em curso'")
-                .HasColumnType("enum('Proposta','Em curso','Em risco','Concluído','Suspenso')")
+                .HasColumnType("enum('Proposta','Em curso','Em risco','Concluído','Suspenso','Cancelado')")
                 .HasColumnName("status");
             entity.Property(e => e.TenantId).HasColumnName("tenant_id");
             entity.Property(e => e.Type)

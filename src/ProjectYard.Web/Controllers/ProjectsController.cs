@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ public class ProjectsController : Controller
 {
     private readonly AppDbContext _db;
     public ProjectsController(AppDbContext db) => _db = db;
+
+    private long? CurrentUserId() => long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
     public async Task<IActionResult> Index(string? status, string? health, long? pm, string? view)
     {
@@ -88,6 +91,14 @@ public class ProjectsController : Controller
             Invoices = await _db.Invoices.Where(i => i.ProjectId == id).OrderByDescending(i => i.IssuedAt).ToListAsync(),
             Team = team.OrderByDescending(t => t.IsPm).ToList(),
         };
+
+        // Histórico de estados (mais recente primeiro) + nome do autor.
+        var hist = await _db.ProjectStatusHistories.Where(h => h.ProjectId == id)
+            .OrderByDescending(h => h.ChangedAt).ThenByDescending(h => h.Id).ToListAsync();
+        var authorIds = hist.Where(h => h.ChangedBy != null).Select(h => h.ChangedBy!.Value).Distinct().ToList();
+        var authors = await _db.Users.Where(u => authorIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Name);
+        ViewBag.StatusHistory = hist;
+        ViewBag.StatusAuthors = authors;
         return View(vm);
     }
 
@@ -109,6 +120,15 @@ public class ProjectsController : Controller
         input.CreatedAt = DateTime.Now;
         _db.Projects.Add(input);
         await _db.SaveChangesAsync();
+        // 1.ª entrada do histórico de estados.
+        _db.ProjectStatusHistories.Add(new ProjectStatusHistory
+        {
+            ProjectId = input.Id,
+            Status = input.Status,
+            ChangedBy = CurrentUserId(),
+            ChangedAt = DateTime.Now,
+        });
+        await _db.SaveChangesAsync();
         TempData["ok"] = "Projeto criado.";
         return RedirectToAction(nameof(Index));
     }
@@ -124,18 +144,31 @@ public class ProjectsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(long id, Project input)
+    public async Task<IActionResult> Edit(long id, Project input, string? statusNote, DateTime? statusDate)
     {
         var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == id);
         if (p is null) return NotFound();
         Clean();
         if (!ModelState.IsValid) { await Selects(); return View("Form", input); }
+        var statusChanged = p.Status != input.Status;
         p.Code = input.Code; p.Name = input.Name; p.ClientId = input.ClientId; p.ManagerUserId = input.ManagerUserId;
         p.Type = input.Type; p.Status = input.Status; p.Priority = input.Priority; p.Health = input.Health;
         p.PhaseCurrent = input.PhaseCurrent; p.StartPlanned = input.StartPlanned; p.EndPlanned = input.EndPlanned;
         p.Fees = input.Fees; p.Budget = input.Budget; p.Spent = input.Spent; p.Notes = input.Notes;
+        // Histórico: cada mudança de estado regista observação (opcional) + data do evento + autor.
+        if (statusChanged)
+        {
+            _db.ProjectStatusHistories.Add(new ProjectStatusHistory
+            {
+                ProjectId = p.Id,
+                Status = input.Status,
+                Note = string.IsNullOrWhiteSpace(statusNote) ? null : statusNote.Trim(),
+                ChangedBy = CurrentUserId(),
+                ChangedAt = statusDate ?? DateTime.Now,
+            });
+        }
         await _db.SaveChangesAsync();
-        TempData["ok"] = "Projeto atualizado.";
+        TempData["ok"] = statusChanged ? $"Projeto atualizado · estado → {input.Status}." : "Projeto atualizado.";
         return RedirectToAction(nameof(Details), new { id });
     }
 

@@ -24,7 +24,7 @@ public static class Ui
     public static string ProjectStatus(string s) => s switch
     {
         "Em curso" => "b-blue", "Em risco" => "b-red", "Concluído" => "b-green",
-        "Proposta" => "b-gray", "Suspenso" => "b-amber", _ => "b-gray"
+        "Proposta" => "b-gray", "Suspenso" => "b-amber", "Cancelado" => "b-red", _ => "b-gray"
     };
 
     public static string TenantStatus(string s) => s switch
