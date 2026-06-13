@@ -15,8 +15,27 @@ public partial class AppDbContext
 
     public virtual DbSet<Event> Events { get; set; }
 
+    public virtual DbSet<DeliverableVersion> DeliverableVersions { get; set; }
+
     private static void ConfigureCustom(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<DeliverableVersion>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("deliverable_versions").UseCollation("utf8mb4_0900_ai_ci");
+            entity.HasIndex(e => e.DeliverableId, "ix_dv_deliv");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DeliverableId).HasColumnName("deliverable_id");
+            entity.Property(e => e.Version).HasMaxLength(12).HasColumnName("version");
+            entity.Property(e => e.Status).HasMaxLength(40).HasColumnName("status");
+            entity.Property(e => e.Note).HasMaxLength(255).HasColumnName("note");
+            entity.Property(e => e.DocumentId).HasColumnName("document_id");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime").HasColumnName("created_at");
+            entity.HasOne(d => d.Deliverable).WithMany().HasForeignKey(d => d.DeliverableId).HasConstraintName("fk_dv_deliv");
+        });
+        modelBuilder.Entity<DeliverableVersion>().HasOne<Identity.ApplicationUser>().WithMany().HasForeignKey(e => e.CreatedBy).HasConstraintName("fk_dv_user").OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<Event>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");
