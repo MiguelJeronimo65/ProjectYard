@@ -170,7 +170,7 @@ CREATE TABLE projects (
   client_id        BIGINT NULL,
   manager_user_id  BIGINT NULL,                      -- Gestor
   type             VARCHAR(80) NULL,
-  status           ENUM('Proposta','Em curso','Em risco','Concluído','Suspenso') NOT NULL DEFAULT 'Em curso',
+  status           ENUM('Proposta','Em curso','Em risco','Concluído','Suspenso','Cancelado') NOT NULL DEFAULT 'Em curso',
   priority         ENUM('Alta','Média','Baixa') NOT NULL DEFAULT 'Média',
   health           ENUM('green','amber','red') NOT NULL DEFAULT 'green',
   phase_current    VARCHAR(80) NULL,
@@ -195,6 +195,20 @@ CREATE TABLE projects (
   CONSTRAINT fk_project_tenant  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_project_client  FOREIGN KEY (client_id) REFERENCES clients(id),
   CONSTRAINT fk_project_manager FOREIGN KEY (manager_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Histórico de mudanças de estado do projeto (data do evento + observação opcional + autor).
+-- Cada mudança de estado (incl. Cancelado) acrescenta uma linha — não substitui.
+CREATE TABLE project_status_history (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  project_id  BIGINT NOT NULL,
+  status      VARCHAR(20) NOT NULL,                  -- estado para que mudou
+  note        VARCHAR(500) NULL,                     -- observação (não obrigatória)
+  changed_by  BIGINT NULL,
+  changed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_psh_project (project_id, changed_at),
+  CONSTRAINT fk_psh_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_psh_user    FOREIGN KEY (changed_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE project_members (
