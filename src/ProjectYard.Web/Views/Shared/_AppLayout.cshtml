@@ -191,8 +191,8 @@
                     <span data-t="noite" style="display:none;">@Icons.Render("moon", 19)</span>
                     <span data-t="auto" style="display:none;">@Icons.Render("monitor", 19)</span>
                 </button>
-                <button class="icon-btn topbar-msg" type="button" title="Mensagens">@Icons.Render("message", 19)</button>
-                <button class="icon-btn" type="button" title="Notificações">@Icons.Render("bell", 19)<span class="dot"></span></button>
+                <a class="icon-btn topbar-msg" asp-controller="Chat" asp-action="Index" title="Mensagens">@Icons.Render("message", 19)</a>
+                @await Component.InvokeAsync("Notifications")
                 <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
                 <div class="user-chip" style="border:none;padding:6px 8px;">
                     @if (myAvatar != null)

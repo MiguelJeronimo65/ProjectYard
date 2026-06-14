@@ -1,0 +1,49 @@
+@model List<ProjectYard.Web.Components.NotificationsViewComponent.Item>
+@{
+    int count = ViewBag.Count;
+    string Rel(DateTime d)
+    {
+        var diff = DateTime.Now - d;
+        if (diff.TotalMinutes < 2) return "agora";
+        if (diff.TotalMinutes < 60) return $"há {(int)diff.TotalMinutes} min";
+        if (diff.TotalHours < 24) return $"há {(int)diff.TotalHours} h";
+        if (diff.TotalDays < 7) return $"há {(int)diff.TotalDays} d";
+        return d.ToString("dd MMM", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    }
+}
+<details class="py-notif">
+    <summary class="icon-btn" title="Notificações" style="list-style:none;position:relative;cursor:pointer;">
+        @Icons.Render("bell", 19)
+        @if (count > 0)
+        {
+            <span class="badge-count" style="position:absolute;top:-3px;right:-3px;">@(count > 9 ? "9+" : count.ToString())</span>
+        }
+    </summary>
+    <div class="py-notif__panel card">
+        <div class="py-notif__head">
+            <span style="font-weight:700;font-size:14px;">Notificações</span>
+            @if (count > 0) { <span class="badge b-red" style="padding:1px 8px;font-size:11px;">@count</span> }
+        </div>
+        <div class="py-notif__list">
+            @if (Model.Count == 0)
+            {
+                <div class="empty" style="padding:30px 12px;">@Icons.Render("check", 26)<div style="margin-top:8px;font-weight:600;font-size:13px;">Tudo em dia — sem notificações.</div></div>
+            }
+            else
+            {
+                @foreach (var n in Model)
+                {
+                    <a href="@n.Url" class="py-notif__item">
+                        <span class="py-notif__ic" style="background:@n.Bg;color:@n.Color;">@Icons.Render(n.Icon, 16)</span>
+                        <span style="flex:1;min-width:0;">
+                            <span style="display:block;font-weight:700;font-size:12.5px;">@n.Text</span>
+                            <span class="muted-3" style="display:block;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@n.Sub</span>
+                        </span>
+                        <span class="muted-3" style="font-size:11px;font-weight:600;flex-shrink:0;">@Rel(n.When)</span>
+                    </a>
+                }
+            }
+        </div>
+        <a class="py-notif__foot" href="@Url.Action("Index","Home")">Ver no dashboard</a>
+    </div>
+</details>

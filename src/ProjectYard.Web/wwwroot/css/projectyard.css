@@ -649,3 +649,24 @@ input, textarea, select { font-family: inherit; }
   .content { padding: 16px 13px; }
   .page-head__actions { flex-wrap: wrap; }
 }
+
+/* ===== Sino de notificações (ViewComponent) ===== */
+.py-notif { position: relative; }
+.py-notif > summary { display: grid; place-items: center; }
+.py-notif > summary::-webkit-details-marker { display: none; }
+.py-notif > summary .badge-count {
+  font-size: 9.5px; font-weight: 800; background: var(--danger); color: #fff;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px;
+  display: grid; place-items: center; border: 2px solid var(--surface);
+}
+.py-notif__panel {
+  position: absolute; top: 44px; right: 0; z-index: 60; width: 340px; max-width: 90vw;
+  padding: 0; overflow: hidden; box-shadow: var(--sh-md);
+}
+.py-notif__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.py-notif__list { max-height: 380px; overflow-y: auto; }
+.py-notif__item { display: flex; align-items: center; gap: 11px; padding: 11px 16px; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+.py-notif__item:hover { background: var(--surface-2); }
+.py-notif__ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.py-notif__foot { display: block; text-align: center; padding: 11px; font-size: 12.5px; font-weight: 700; color: var(--primary-700); text-decoration: none; }
+.py-notif__foot:hover { background: var(--surface-2); }
