@@ -1,0 +1,17 @@
+@{
+    (string c, string t)[] bars =
+    {
+        ("#1f9d6b", "Concluída"), ("#2a7fb8", "Em curso"), ("#c9d2da", "Por iniciar"), ("#d65151", "Atraso"),
+    };
+}
+<div style="display:flex;align-items:center;gap:18px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        @foreach (var (c, t) in bars)
+        {
+            <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:18px;height:10px;border-radius:4px;background:@c;"></span>@t</span>
+        }
+        <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:18px;height:5px;border-radius:3px;background:rgba(120,130,140,.6);"></span>Previsto (baseline)</span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="color:var(--danger);display:grid;">@Icons.Render("alert", 14)</span>Crítica</span>
+    </div>
+    <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--danger);margin-left:auto;"><span style="width:2px;height:14px;background:var(--danger);"></span>Hoje</span>
+</div>

@@ -146,8 +146,11 @@
                 {
                     // Pagamentos só para quem gere faturação (matriz de permissões).
                     if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) { continue; }
-                    var url = n.built ? Url.Action("Index", n.ctrl) : "#";
-                    var active = n.built && ctrl == n.ctrl && !(isSuper && ctrl == "Workspaces") && n.label != "Cronograma global";
+                    var isGlobalCrono = n.label == "Cronograma global";
+                    var url = !n.built ? "#" : isGlobalCrono ? Url.Action("Global", "Gantt") : Url.Action("Index", n.ctrl);
+                    var actAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+                    var active = n.built && ctrl == n.ctrl && !(isSuper && ctrl == "Workspaces")
+                        && (isGlobalCrono ? actAction == "Global" : (n.label != "Cronograma global" && actAction != "Global"));
                     <a class="nav-item @(active ? "active" : "")" href="@url" title="@n.label" style="@(n.built ? "" : "opacity:.5;")">
                         @Icons.Render(n.icon, 19)<span>@n.label</span>
                         @if (n.badge > 0) { <span class="badge-count">@n.badge</span> }

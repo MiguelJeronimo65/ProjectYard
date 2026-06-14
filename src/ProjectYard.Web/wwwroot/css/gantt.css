@@ -6,6 +6,7 @@
 .gantt_task_line.py-doing   { background: #2a7fb8; border-color: #246a9c; }
 .gantt_task_line.py-todo    { background: #c9d2da; border-color: #b7c1cb; }
 .gantt_task_line.py-todo .gantt_task_content { color: #5b6671; }
+.gantt_task_line.py-late    { background: #d65151; border-color: #b83f3f; }   /* atraso (real vs previsto) */
 
 /* Progresso */
 .gantt_task_progress { background: rgba(255,255,255,.30); }
