@@ -59,6 +59,7 @@ public class DeliverablesController : Controller
     /// <summary>Aprovar um entregável em aprovação.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Aprovar")]
     public async Task<IActionResult> Approve(long id)
     {
         var d = await _db.Deliverables.FirstOrDefaultAsync(x => x.Id == id);
@@ -73,6 +74,7 @@ public class DeliverablesController : Controller
     /// <summary>Submeter para aprovação (rascunho/revisão → em aprovação), com bump de versão se vinha de revisão.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Aprovar")]
     public async Task<IActionResult> Submit(long id)
     {
         var d = await _db.Deliverables.FirstOrDefaultAsync(x => x.Id == id);
@@ -88,6 +90,7 @@ public class DeliverablesController : Controller
     /// <summary>Pedir alterações (em aprovação → precisa revisão), com observação no histórico de versões.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Aprovar")]
     public async Task<IActionResult> RequestChanges(long id, string? note)
     {
         var d = await _db.Deliverables.FirstOrDefaultAsync(x => x.Id == id);

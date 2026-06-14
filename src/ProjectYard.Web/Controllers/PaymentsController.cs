@@ -5,6 +5,7 @@ using ProjectYard.Data.Entities;
 
 namespace ProjectYard.Web.Controllers;
 
+[Microsoft.AspNetCore.Authorization.Authorize(Policy = "Faturacao")]
 public class PaymentsController : Controller
 {
     private readonly AppDbContext _db;

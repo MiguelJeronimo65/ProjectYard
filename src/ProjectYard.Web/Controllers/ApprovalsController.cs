@@ -50,6 +50,7 @@ public class ApprovalsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Aprovar")]
     public async Task<IActionResult> Approve(long id, string? returnUrl = null)
     {
         var a = await _db.Approvals.FirstOrDefaultAsync(x => x.Id == id);
@@ -66,6 +67,7 @@ public class ApprovalsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Aprovar")]
     public async Task<IActionResult> Return(long id, string? motivo, string? reason)
     {
         var a = await _db.Approvals.FirstOrDefaultAsync(x => x.Id == id);

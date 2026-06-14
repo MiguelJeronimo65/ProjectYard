@@ -36,6 +36,7 @@ public class RisksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Create(Risk input)
     {
         Clean();
@@ -60,6 +61,7 @@ public class RisksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Edit(long id, Risk input)
     {
         var r = await _db.Risks.FirstOrDefaultAsync(x => x.Id == id);
@@ -76,6 +78,7 @@ public class RisksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Delete(long id)
     {
         var r = await _db.Risks.FirstOrDefaultAsync(x => x.Id == id);

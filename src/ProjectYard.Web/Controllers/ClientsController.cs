@@ -41,6 +41,7 @@ public class ClientsController : Controller
     /// <summary>Drag &amp; drop do pipeline CRM: move o cliente de fase (persistido).</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> MoveStage(long id, string stage)
     {
         if (!Stages.Any(s => s.Id == stage)) return BadRequest();
@@ -58,6 +59,7 @@ public class ClientsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Create(Client input)
     {
         ModelState.Remove(nameof(Client.Tenant));
@@ -80,6 +82,7 @@ public class ClientsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Edit(long id, Client input)
     {
         var c = await _db.Clients.FirstOrDefaultAsync(x => x.Id == id);
@@ -95,6 +98,7 @@ public class ClientsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Delete(long id)
     {
         var c = await _db.Clients.FirstOrDefaultAsync(x => x.Id == id);

@@ -45,6 +45,24 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add(new AuthorizeFilter(policy));
 });
 
+// Autorização por papel (matriz de Definições). Superadmin (plataforma) e Owner passam sempre.
+// Aplicada às AÇÕES sensíveis; a visualização geral fica aberta a qualquer autenticado.
+builder.Services.AddAuthorization(options =>
+{
+    static bool Super(AuthorizationHandlerContext c) =>
+        c.User.HasClaim(AppUserClaimsPrincipalFactory.IsSuperadmin, "true")
+        || c.User.IsInRole("Superadmin") || c.User.IsInRole("Owner");
+    void Pol(string name, params string[] roles) =>
+        options.AddPolicy(name, p => p.RequireAssertion(c => Super(c) || roles.Any(c.User.IsInRole)));
+
+    Pol("GerirProjetos", "Administrador", "Gestor");                 // criar/editar projetos, clientes, riscos
+    Pol("GerirTarefas", "Administrador", "Gestor", "Membro");        // tarefas, calendário, horas
+    Pol("Aprovar", "Administrador", "Gestor");                       // aprovar/devolver entregáveis e aprovações
+    Pol("EnviarSms", "Administrador", "Gestor");                     // enviar SMS a clientes
+    Pol("Faturacao", "Administrador");                               // financeiro/pagamentos (Super/Owner/Admin)
+    options.AddPolicy("FaturacaoWorkspace", p => p.RequireAssertion(Super)); // subscrição: só Owner/Superadmin
+});
+
 // Sessão: usada pelo modo plataforma (superadmin "abre" um workspace e vê-o como apoio, com auditoria).
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(o =>

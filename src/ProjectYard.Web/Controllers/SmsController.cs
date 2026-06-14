@@ -47,6 +47,7 @@ public class SmsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "EnviarSms")]
     public async Task<IActionResult> Send(long clientId, string body)
     {
         var lastForClient = await _db.SmsMessages.Where(m => m.ClientId == clientId)

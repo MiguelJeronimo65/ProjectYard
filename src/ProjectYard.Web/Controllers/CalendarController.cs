@@ -65,6 +65,7 @@ public class CalendarController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> Create(string category, string title, DateOnly eventDate, TimeOnly? startTime, TimeOnly? endTime, long? projectId, string? location, string? notes)
     {
         var manual = Cats.Where(c => c.Manual).Select(c => c.Id).ToArray();
@@ -95,6 +96,7 @@ public class CalendarController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> Delete(long id, string? m)
     {
         var e = await _db.Events.FirstOrDefaultAsync(x => x.Id == id);

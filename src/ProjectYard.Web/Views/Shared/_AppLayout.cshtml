@@ -144,6 +144,8 @@
                 <div class="nav-label">@g.label</div>
                 @foreach (var n in g.items)
                 {
+                    // Pagamentos só para quem gere faturação (matriz de permissões).
+                    if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) { continue; }
                     var url = n.built ? Url.Action("Index", n.ctrl) : "#";
                     var active = n.built && ctrl == n.ctrl && !(isSuper && ctrl == "Workspaces") && n.label != "Cronograma global";
                     <a class="nav-item @(active ? "active" : "")" href="@url" title="@n.label" style="@(n.built ? "" : "opacity:.5;")">

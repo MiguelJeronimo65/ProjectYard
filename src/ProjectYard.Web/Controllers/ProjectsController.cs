@@ -103,6 +103,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Create()
     {
         await Selects();
@@ -111,6 +112,7 @@ public class ProjectsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Create(Project input)
     {
         Clean();
@@ -134,6 +136,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Edit(long id)
     {
         var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == id);
@@ -144,6 +147,7 @@ public class ProjectsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirProjetos")]
     public async Task<IActionResult> Edit(long id, Project input, string? statusNote, DateTime? statusDate)
     {
         var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == id);

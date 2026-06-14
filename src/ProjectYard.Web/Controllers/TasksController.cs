@@ -73,6 +73,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> AddChecklistItem(long taskId, string title)
     {
         if (!string.IsNullOrWhiteSpace(title) && await InTenant(taskId))
@@ -86,6 +87,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> ToggleChecklistItem(long id)
     {
         var c = await _db.TaskChecklistItems.Include(x => x.Task).FirstOrDefaultAsync(x => x.Id == id);
@@ -99,6 +101,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> DeleteChecklistItem(long id)
     {
         var c = await _db.TaskChecklistItems.Include(x => x.Task).FirstOrDefaultAsync(x => x.Id == id);
@@ -114,6 +117,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> AddComment(long taskId, string body)
     {
         if (!string.IsNullOrWhiteSpace(body) && await InTenant(taskId))
@@ -126,6 +130,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> UpdateTask(long taskId, string? tags, string? priority, long? assigneeId, DateOnly? dueDate)
     {
         var t = await _db.Tasks.FirstOrDefaultAsync(x => x.Id == taskId && x.TenantId == _db.CurrentTenantId);
@@ -145,6 +150,7 @@ public class TasksController : Controller
     /// <summary>Drag &amp; drop do Kanban: move a tarefa para outra coluna (persistido).</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> Move(long id, string state)
     {
         var allowed = new[] { "todo", "doing", "review", "done" };
@@ -159,6 +165,7 @@ public class TasksController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "GerirTarefas")]
     public async Task<IActionResult> Create(string title, string state, string priority, long? projectId, long? assigneeId, DateOnly? dueDate)
     {
         if (string.IsNullOrWhiteSpace(title) || projectId is null)
