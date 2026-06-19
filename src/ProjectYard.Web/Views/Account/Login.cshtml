@@ -36,9 +36,18 @@
             </div>
             <p class="login__lead">A plataforma de controlo de entrega para gabinetes de arquitetura, engenharia e consultoras.</p>
             <div class="login__stats">
-                <div class="login__stat"><div class="display num">24</div><div class="login__statlabel">Projetos ativos</div></div>
-                <div class="login__stat"><div class="display num">1.2k</div><div class="login__statlabel">Entregáveis controlados</div></div>
-                <div class="login__stat"><div class="display num">€840k</div><div class="login__statlabel">Faturado este ano</div></div>
+                <div class="login__stat" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                    <span style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.12);display:grid;place-items:center;">@Icons.Render("gantt", 21)</span>
+                    <div class="login__statlabel">Cronogramas<br />previsto vs real</div>
+                </div>
+                <div class="login__stat" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                    <span style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.12);display:grid;place-items:center;">@Icons.Render("layers", 21)</span>
+                    <div class="login__statlabel">Entregáveis<br />e aprovações</div>
+                </div>
+                <div class="login__stat" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                    <span style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.12);display:grid;place-items:center;">@Icons.Render("euro", 21)</span>
+                    <div class="login__statlabel">Honorários<br />e faturação</div>
+                </div>
             </div>
         </div>
         <div class="login__brandfoot">
