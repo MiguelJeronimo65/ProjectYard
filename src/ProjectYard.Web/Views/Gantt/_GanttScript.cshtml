@@ -1,0 +1,92 @@
+@* Script partilhado do DHTMLX Gantt (incluído dentro de <script>). Usa o global PY_DATA_URL.
+   Corre só quando o DHTMLX (CDN) e o DOM estiverem prontos, para evitar corridas de arranque. *@
+var activeFilter = "";
+
+function setZoom(level) {
+    if (!window.gantt) return;
+    gantt.ext.zoom.setLevel(level);
+    document.querySelectorAll('.chip-row .chip').forEach(function (c) { c.classList.toggle('active', c.textContent === level); });
+}
+function setGanttFilter(btn, kind) {
+    activeFilter = kind;
+    btn.parentElement.querySelectorAll('.chip').forEach(function (c) { c.classList.toggle('active', c === btn); });
+    if (window.gantt) gantt.render();
+}
+
+function pyInitGantt() {
+    gantt.config.date_format = "%Y-%m-%d";
+    gantt.config.start_date = new Date(2025, 0, 1);
+    gantt.config.end_date = new Date(2029, 0, 1);
+    gantt.config.readonly = true;
+    gantt.config.row_height = 38;
+
+    gantt.config.columns = [
+        { name: "text", label: "Projeto / Fase", tree: true, width: 250, resize: true },
+        { name: "progress", label: "%", align: "center", width: 50,
+          template: function (t) { return (t.type === "project" || t.status === "Em curso") ? Math.round((t.progress || 0) * 100) + "%" : ""; } },
+    ];
+
+    gantt.ext.zoom.init({ levels: [
+        { name: "Semana", scale_height: 62, min_column_width: 30, scales: [
+            { unit: "year", step: 1, format: "%Y" }, { unit: "month", step: 1, format: "%M" },
+            { unit: "week", step: 1, format: function (d) { return "S" + gantt.date.getISOWeek(d); } } ] },
+        { name: "Mês", scale_height: 52, min_column_width: 72, scales: [
+            { unit: "year", step: 1, format: "%Y" }, { unit: "month", step: 1, format: "%M" } ] },
+        { name: "Trimestre", scale_height: 52, min_column_width: 92, scales: [
+            { unit: "year", step: 1, format: "%Y" }, { unit: "quarter", step: 1, format: function (d) { return "T" + (Math.floor(d.getMonth() / 3) + 1); } } ] },
+        { name: "Ano", scale_height: 40, min_column_width: 120, scales: [ { unit: "year", step: 1, format: "%Y" } ] },
+    ] });
+
+    gantt.plugins({ marker: true, tooltip: true });
+
+    gantt.templates.task_class = function (s, e, t) {
+        if (t.type === "project") return "py-project";
+        var base = t.late ? "py-late" : t.status === "Concluída" ? "py-done" : t.status === "Em curso" ? "py-doing" : "py-todo";
+        return base + (t.critica ? " py-crit" : "");
+    };
+    gantt.templates.task_text = function (s, e, t) { return t.status === "Em curso" ? Math.round((t.progress || 0) * 100) + "%" : ""; };
+    gantt.templates.tooltip_text = function (s, e, t) {
+        if (t.type === "project") return "<b>" + t.text + "</b>";
+        return "<b>" + t.text + "</b><br/>Estado: " + (t.status || "—") + (t.late ? " · <b style='color:#d65151'>Em atraso</b>" : "") + (t.critica ? " · crítica" : "")
+            + "<br/>Previsto: " + (t.planned_start || "—") + " → " + (t.planned_end || "—")
+            + "<br/>Real: " + (t.start_date || "—") + " → " + (t.end_date || "—");
+    };
+
+    if (typeof gantt.addTaskLayer === "function") {
+        gantt.addTaskLayer(function (t) {
+            if (!t.planned_start || t.type === "project") return false;
+            var sX = gantt.posFromDate(gantt.date.parseDate(t.planned_start, "%Y-%m-%d"));
+            var eX = gantt.posFromDate(gantt.date.parseDate(t.planned_end, "%Y-%m-%d"));
+            var el = document.createElement("div");
+            el.className = "py-baseline";
+            el.style.left = sX + "px";
+            el.style.width = Math.max(2, eX - sX) + "px";
+            el.style.top = gantt.getTaskTop(t.id) + gantt.config.task_height + 3 + "px";
+            return el;
+        });
+    }
+
+    gantt.attachEvent("onBeforeTaskDisplay", function (id, t) {
+        if (t.type === "project" || !activeFilter) return true;
+        switch (activeFilter) {
+            case "done": return t.status === "Concluída";
+            case "curso": return t.status === "Em curso";
+            case "init": return t.status === "Por iniciar";
+            case "late": return !!t.late;
+            case "crit": return !!t.critica;
+            default: return true;
+        }
+    });
+
+    gantt.init("gantt_here");
+    gantt.load(PY_DATA_URL);
+    gantt.ext.zoom.setLevel("Mês");
+    var PY_TODAY = new Date();
+    gantt.addMarker({ start_date: PY_TODAY, css: "today-line", text: "Hoje" });
+    gantt.attachEvent("onDataRender", function () { gantt.showDate(PY_TODAY); });
+}
+
+(function pyWaitGantt() {
+    if (window.gantt && document.getElementById("gantt_here")) { pyInitGantt(); }
+    else { window.addEventListener("load", function () { if (window.gantt) pyInitGantt(); }); }
+})();

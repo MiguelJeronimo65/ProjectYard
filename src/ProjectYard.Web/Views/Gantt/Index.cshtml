@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "Cronograma";
+    var projects = (List<ProjectYard.Data.Entities.Project>)ViewBag.Projects ?? new();
+    var selected = (ProjectYard.Data.Entities.Project?)ViewBag.Selected;
+}
+<link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/8.0/dhtmlxgantt.css" />
+<link rel="stylesheet" href="~/css/gantt.css" asp-append-version="true" />
+<div class="content">
+    <div class="breadcrumb"><a href="@Url.Action("Index","Projects")">Projetos</a>@Icons.Render("chevR", 13)<a>Cronograma</a></div>
+    <div class="page-head">
+        <div><h1>Cronograma</h1><p>@(selected?.Name ?? "—") · fases · previsto vs real (DHTMLX Gantt)</p></div>
+        <div class="page-head__actions">
+            @if (projects.Count > 0)
+            {
+                <div class="fld__box" style="height:40px;min-width:240px;padding:0 12px;">
+                    <select onchange="location.href='@Url.Action("Index")?project='+this.value" style="border:none;outline:none;background:transparent;flex:1;font-size:13.5px;font-weight:600;color:var(--text);">
+                        @foreach (var p in projects) { <option value="@p.Id" selected="@(selected?.Id == p.Id)">@p.Code · @p.Name</option> }
+                    </select>
+                </div>
+            }
+            <div class="chip-row" style="display:flex;gap:6px;">
+                <button type="button" class="chip" onclick="setZoom('Semana')">Semana</button>
+                <button type="button" class="chip active" onclick="setZoom('Mês')">Mês</button>
+                <button type="button" class="chip" onclick="setZoom('Trimestre')">Trimestre</button>
+                <button type="button" class="chip" onclick="setZoom('Ano')">Ano</button>
+            </div>
+            <a class="btn btn-soft btn-sm" asp-action="Global">@Icons.Render("gantt", 15) Ver global</a>
+        </div>
+    </div>
+
+    @await Html.PartialAsync("_GanttLegend")
+
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+        <button type="button" class="chip active" data-f="" onclick="setGanttFilter(this,'')">Todas</button>
+        <button type="button" class="chip" data-f="curso" onclick="setGanttFilter(this,'curso')">Em curso</button>
+        <button type="button" class="chip" data-f="done" onclick="setGanttFilter(this,'done')">Concluídas</button>
+        <button type="button" class="chip" data-f="init" onclick="setGanttFilter(this,'init')">Por iniciar</button>
+        <button type="button" class="chip" data-f="late" onclick="setGanttFilter(this,'late')">Em atraso</button>
+        <button type="button" class="chip" data-f="crit" onclick="setGanttFilter(this,'crit')">Críticas</button>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        @if (selected == null)
+        {
+            <div class="empty" style="padding:60px 0;">@Icons.Render("gantt", 32)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem fases planeadas</div><div style="margin-top:4px;">Adiciona fases com datas previstas a um projeto.</div></div>
+        }
+        else
+        {
+            <div id="gantt_here" style="width:100%;height:640px;"></div>
+        }
+    </div>
+</div>
+
+@if (selected != null)
+{
+    <script src="https://cdn.dhtmlx.com/gantt/8.0/dhtmlxgantt.js"></script>
+    <script>
+        var PY_DATA_URL = "@Url.Action("Data", "Gantt")?project=@selected.Id";
+        @await Html.PartialAsync("_GanttScript")
+    </script>
+}

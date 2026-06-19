@@ -1,0 +1,11 @@
+@{
+    ViewData["Title"] = "Sem acesso";
+}
+<div class="content">
+    <div class="card card-pad" style="max-width:520px;margin:60px auto;text-align:center;">
+        <div style="display:flex;justify-content:center;margin-bottom:14px;color:var(--danger);">@Icons.Render("lock", 40)</div>
+        <h1 class="display" style="font-size:24px;margin:0 0 8px;">Sem acesso</h1>
+        <p class="muted">Não tens permissão para ver esta página. Se achas que é um engano, fala com o administrador do teu workspace.</p>
+        <a class="btn btn-primary" href="@Url.Action("Index","Home")" style="margin-top:16px;">Voltar ao início</a>
+    </div>
+</div>

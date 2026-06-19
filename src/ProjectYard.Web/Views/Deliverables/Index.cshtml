@@ -1,0 +1,179 @@
+@model List<Deliverable>
+@{
+    ViewData["Title"] = "Entregáveis";
+    var all = (List<Deliverable>)ViewBag.All;
+    string estado = ViewBag.Estado;
+    var estados = new[] { "Todos", "Aprovado", "Em aprovação", "Em revisão", "Precisa revisão", "Rascunho" };
+    int aprovados = all.Count(d => d.Status == "Aprovado");
+    int emAprov = all.Count(d => d.Status == "Em aprovação");
+    int emRev = all.Count(d => d.Status == "Em revisão");
+    int precisam = all.Count(d => d.Status == "Precisa revisão");
+    var fluxo = all.FirstOrDefault(d => d.Status == "Em aprovação");
+}
+<div class="content">
+    <div class="page-head">
+        <div><h1>Entregáveis</h1><p>Todos os projetos · @all.Count entregáveis</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-primary" type="button">@Icons.Render("plus", 16) Novo entregável</button>
+        </div>
+    </div>
+
+    @* Mini-summaries *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        @foreach (var (icon, c, bg, n, l) in new[]
+        {
+            ("check", "var(--success)", "var(--success-soft)", aprovados, "Aprovados"),
+            ("clock", "var(--warning)", "var(--warning-soft)", emAprov, "Em aprovação"),
+            ("eye", "var(--info)", "var(--info-soft)", emRev, "Em revisão"),
+            ("alert", "var(--danger)", "var(--danger-soft)", precisam, "Precisam revisão"),
+        })
+        {
+            <div class="card card-pad" style="display:flex;align-items:center;gap:14px;">
+                <div style="width:46px;height:46px;border-radius:12px;background:@bg;color:@c;display:grid;place-items:center;">@Icons.Render(icon, 22)</div>
+                <div style="flex:1;"><div class="num" style="font-size:26px;font-weight:700;line-height:1;">@n</div><div class="muted" style="font-size:13px;font-weight:600;">@l</div></div>
+            </div>
+        }
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        @foreach (var s in estados)
+        {
+            <a class="chip @(estado == s ? "active" : "")" href="@Url.Action("Index", new { estado = s == "Todos" ? null : s })">@s</a>
+        }
+        <span class="muted-3" style="margin-left:auto;font-size:12.5px;font-weight:600;">@Model.Count de @all.Count</span>
+    </div>
+
+    <div class="card">
+        <table class="tbl">
+            <thead><tr><th>Entregável</th><th>Projeto</th><th>Tipo</th><th>Versão</th><th>Estado</th><th>Responsável</th><th>Prazo</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td style="max-width:320px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:38px;height:38px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex-shrink:0;">@Icons.Render("layers", 19)</div>
+                            <div>
+                                <div style="font-weight:700;">@d.Name @if (d.Required == true) { <span class="badge b-red" style="margin-left:8px;padding:2px 7px;font-size:10.5px;">Obrigatório</span> }</div>
+                                <div class="muted-3" style="font-size:12px;font-weight:600;">@(d.Phase ?? "—") · @d.FilesCount ficheiros</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="badge b-gray">@(d.Project?.Code ?? "—")</span></td>
+                    <td class="muted" style="font-weight:600;">@(d.Type ?? "—")</td>
+                    <td><span class="num badge b-gray">@(d.Version ?? "—")</span></td>
+                    <td><span class="badge @Ui.DeliverableStatus(d.Status)"><span class="bdot"></span>@d.Status</span></td>
+                    <td><div style="display:flex;align-items:center;gap:8px;">@Components.Avatar(d.Owner?.Name, 28)<span style="font-weight:600;font-size:13px;">@(d.Owner?.Name.Split(' ').FirstOrDefault() ?? "—")</span></div></td>
+                    <td class="muted" style="font-weight:600;">@Ui.Date(d.DueDate)</td>
+                    <td style="text-align:right;">
+                        <div style="display:flex;gap:6px;justify-content:flex-end;">
+                            @if (d.Status == "Em aprovação")
+                            {
+                                <form asp-action="Approve" asp-route-id="@d.Id" method="post" style="display:inline;">
+                                    <button class="btn btn-primary btn-sm" type="submit" style="padding:6px 11px;">@Icons.Render("check", 13) Aprovar</button>
+                                </form>
+                            }
+                            @if (d.Status is "Rascunho" or "Em revisão" or "Precisa revisão")
+                            {
+                                <form asp-action="Submit" asp-route-id="@d.Id" method="post" style="display:inline;">
+                                    <button class="btn btn-soft btn-sm" type="submit" style="padding:6px 11px;">@Icons.Render("send", 13) Submeter</button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (Model.Count == 0)
+        {
+            <div class="empty" style="padding:40px 0;">@Icons.Render("layers", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem entregáveis no estado “@estado”</div></div>
+        }
+    </div>
+
+    @if (fluxo != null)
+    {
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px;align-items:start;">
+            <div class="card card-pad">
+                <div class="card-h"><div><h3>Fluxo de aprovação</h3><span class="sub">@fluxo.Name @(fluxo.Version ?? "")</span></div><span class="badge b-amber"><span class="bdot"></span>Em aprovação</span></div>
+                <div class="tl">
+                    <div class="tl-item">
+                        <div class="tl-dot on">@Icons.Render("plus", 11)</div>
+                        <div style="font-weight:700;font-size:13.5px;">Submetido por @(fluxo.Owner?.Name ?? "—")</div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:2px;">@(fluxo.Owner?.Funcao ?? "Equipa")</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-dot" style="border-color:var(--accent);background:var(--accent);color:var(--navy-700);">@Icons.Render("eye", 11)</div>
+                        <div style="font-weight:700;font-size:13.5px;">Revisão técnica <span class="badge b-gold" style="margin-left:8px;padding:2px 8px;font-size:10.5px;">Agora</span></div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:2px;">@(fluxo.Project?.Name ?? "") · em curso</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-dot"></div>
+                        <div style="font-weight:700;font-size:13.5px;">Aprovação do cliente</div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:2px;">@(fluxo.Project?.Client?.Company ?? "Cliente") · pendente</div>
+                    </div>
+                    <div class="tl-item">
+                        <div class="tl-dot"></div>
+                        <div style="font-weight:700;font-size:13.5px;">Disponível para execução</div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:2px;">aguarda aprovação</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                    <form asp-action="Approve" asp-route-id="@fluxo.Id" method="post" style="display:inline;">
+                        <button class="btn btn-primary btn-sm" type="submit">@Icons.Render("check", 14) Aprovar etapa</button>
+                    </form>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('rcOv').style.display='grid'">@Icons.Render("x", 14) Pedir alterações</button>
+                    <button class="btn btn-soft btn-sm" type="button" title="Envio por SMS em desenvolvimento" onclick="PYToast && PYToast('Aprovação por SMS — em desenvolvimento (Fase 3)')">@Icons.Render("sms", 14) Aprovar por SMS</button>
+                    <a class="btn btn-ghost btn-sm" style="margin-left:auto;" asp-controller="Approvals" asp-action="Index">Ver aprovações @Icons.Render("arrowRight", 14)</a>
+                </div>
+            </div>
+            @{
+                var versions = (List<ProjectYard.Data.Entities.DeliverableVersion>)ViewBag.Versions ?? new();
+                var vAuthors = (Dictionary<long, string>)ViewBag.VersionAuthors ?? new();
+            }
+            <div class="card card-pad">
+                <div class="card-h"><div><h3>Histórico de versões</h3><span class="sub">@fluxo.Name · @(fluxo.Version ?? "v1")</span></div></div>
+                @if (versions.Count == 0)
+                {
+                    <div class="muted" style="font-size:13px;font-weight:600;">Sem histórico ainda.</div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;">
+                        @for (int i = 0; i < versions.Count; i++)
+                        {
+                            var v = versions[i];
+                            var last = i == versions.Count - 1;
+                            <div style="display:flex;gap:11px;">
+                                <div style="display:flex;flex-direction:column;align-items:center;">
+                                    <span class="num badge b-gray" style="font-weight:700;font-size:11px;">@v.Version</span>
+                                    @if (!last) { <span style="flex:1;width:2px;background:var(--border);margin:3px 0;"></span> }
+                                </div>
+                                <div style="padding-bottom:@(last ? "0" : "14px");flex:1;">
+                                    <div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:700;font-size:13px;">@(v.Status ?? "—")</span><span class="muted-3" style="font-size:11.5px;font-weight:600;">@v.CreatedAt.ToString("dd MMM yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))</span></div>
+                                    @if (!string.IsNullOrEmpty(v.Note)) { <div style="font-size:12.5px;font-weight:500;color:var(--text-2);margin-top:3px;">@v.Note</div> }
+                                    @if (v.CreatedBy is { } cb && vAuthors.TryGetValue(cb, out var an)) { <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:2px;">por @an</div> }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="divider"></div>
+                <a class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" asp-controller="Documents" asp-action="Index">@Icons.Render("fileText", 14) Ver documentos do projeto</a>
+            </div>
+        </div>
+
+        @* Modal Pedir alterações *@
+        <div class="modal-overlay" id="rcOv" style="display:none;" onmousedown="if(event.target===this)this.style.display='none'">
+            <div class="modal-card" style="width:480px;">
+                <div class="modal-head"><div><h3>Pedir alterações</h3><p>@fluxo.Name @(fluxo.Version ?? "")</p></div><button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="document.getElementById('rcOv').style.display='none'">@Icons.Render("x", 18)</button></div>
+                <form asp-action="RequestChanges" asp-route-id="@fluxo.Id" method="post">
+                    <div class="modal-body">
+                        <div class="fld"><label>O que precisa de ser revisto?</label><div class="fld__box" style="align-items:flex-start;padding:11px 13px;"><textarea name="note" rows="3" required placeholder="Descreve as alterações pedidas…" style="flex:1;border:none;outline:none;background:transparent;resize:vertical;font-size:14px;font-family:inherit;color:var(--text);"></textarea></div></div>
+                    </div>
+                    <div class="modal-foot"><button class="btn btn-ghost" type="button" onclick="document.getElementById('rcOv').style.display='none'">Cancelar</button><button class="btn btn-primary" type="submit">@Icons.Render("x", 15) Devolver para revisão</button></div>
+                </form>
+            </div>
+        </div>
+    }
+</div>

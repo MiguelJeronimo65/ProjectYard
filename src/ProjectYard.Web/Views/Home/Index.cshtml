@@ -1,0 +1,194 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    string Kk(decimal n) => "€" + (n >= 100000
+        ? Math.Round(n / 1000).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))
+        : (n / 1000).ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))) + "k";
+    string HC(string h) => h == "green" ? "var(--success)" : h == "amber" ? "#b9791a" : "var(--danger)";
+    string HL(string h) => h == "green" ? "Saudável" : h == "amber" ? "Atenção" : "Crítico";
+    var projUrl = Url.Action("Index", "Projects");
+    var payUrl = Url.Action("Index", "Payments");
+    var repUrl = Url.Action("Index", "Reports");
+}
+<div class="content">
+    <div class="page-head">
+        <div>
+            <h1>Bom dia, @Model.FirstName 👋</h1>
+            <p>Aqui está o estado da entrega dos teus projetos hoje.</p>
+        </div>
+        <div class="page-head__actions">
+            <button class="btn btn-ghost" type="button">@Icons.Render("calendar", 17) Junho 2026</button>
+            <a class="btn btn-primary" asp-controller="Projects" asp-action="Create">@Icons.Render("plus", 17) Novo projeto</a>
+        </div>
+    </div>
+
+    @* ===== Band executiva ===== *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card card-pad stat rise stat-link" onclick="location.href='@projUrl'">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--primary-soft);color:var(--primary);">@Icons.Render("folder", 23)</div>@if (Model.NovosProjetos > 0) { <span class="trend up">@Icons.Render("arrowUp", 13) +@Model.NovosProjetos</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
+            <div><div class="stat__val">@Model.ProjetosAtivos</div><div class="stat__label">Projetos ativos</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.AIniciar a iniciar esta semana</div>
+        </div>
+        <div class="card card-pad stat rise stat-link" onclick="location.href='@repUrl'">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("euro", 23)</div>@if (Model.FaturadoTrendPct is { } ftp) { <span class="trend @(ftp >= 0 ? "up" : "down")">@Icons.Render("arrowUp", 13) @(ftp >= 0 ? "+" : "")@ftp%</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
+            <div><div class="stat__val">@Kk(Model.FaturadoAno)</div><div class="stat__label">Faturado (ano)</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.FaturasEmitidas faturas emitidas</div>
+        </div>
+        <div class="card card-pad stat rise stat-link" onclick="location.href='@payUrl'">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--success-soft);color:var(--success);">@Icons.Render("check", 23)</div><span class="stat__go">@Icons.Render("arrowRight", 17)</span></div>
+            <div><div class="stat__val">@Kk(Model.Recebido)</div><div class="stat__label">Recebido</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Model.PagoPct% da faturação</div>
+        </div>
+        <div class="card card-pad stat rise stat-link" onclick="location.href='@payUrl'">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--warning-soft);color:var(--warning);">@Icons.Render("clock", 23)</div>@if (Model.VencidasCount > 0) { <span class="trend down"><span style="display:inline-flex;transform:rotate(180deg);">@Icons.Render("arrowUp", 13)</span> @Model.VencidasCount @(Model.VencidasCount == 1 ? "vencida" : "vencidas")</span> } else { <span class="stat__go">@Icons.Render("arrowRight", 17)</span> }</div>
+            <div><div class="stat__val">@Kk(Model.AReceber)</div><div class="stat__label">A receber</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@Kk(Model.Vencido) vencido</div>
+        </div>
+    </div>
+
+    @* ===== Faturação + Donut ===== *@
+    <div class="grid" style="grid-template-columns:1.7fr 1fr;margin-bottom:20px;align-items:stretch;">
+        <div class="card card-pad">
+            <div class="card-h">
+                <div><h3>Faturação</h3><span class="sub">Recebido vs. faturado · 2026</span></div>
+                <div class="card-h more" style="display:flex;align-items:center;gap:8px;">
+                    <div class="seg" id="revSeg">
+                        <button type="button" class="active" data-p="m" onclick="setRevPeriod('m')">Mensal</button>
+                        <button type="button" data-p="t" onclick="setRevPeriod('t')">Trimestre</button>
+                        <button type="button" data-p="a" onclick="setRevPeriod('a')">Ano</button>
+                    </div>
+                    <a class="btn btn-soft btn-sm" asp-controller="Reports" asp-action="Index">Relatórios @Icons.Render("arrowRight", 14)</a>
+                </div>
+            </div>
+            @{
+                string FullMonth(string m) => m switch { "Jan" => "Janeiro", "Fev" => "Fevereiro", "Mar" => "Março", "Abr" => "Abril", "Mai" => "Maio", "Jun" => "Junho", "Jul" => "Julho", "Ago" => "Agosto", "Set" => "Setembro", "Out" => "Outubro", "Nov" => "Novembro", "Dez" => "Dezembro", _ => m };
+                string HeadVal(List<(string M, double V)> s) => s.Count > 0 ? "€" + (s[^1].V * 1000).ToString("#,##0", System.Globalization.CultureInfo.GetCultureInfo("pt-PT")) : "€0";
+                string capM = Model.Revenue.Count > 0 ? "faturado em " + FullMonth(Model.Revenue[^1].M) : "sem faturação";
+                string capT = Model.RevenueTri.Count > 0 ? "faturado no " + Model.RevenueTri[^1].M.Replace("T", "") + ".º trimestre" : "sem faturação";
+                string capA = Model.RevenueAno.Count > 0 ? "faturado em " + Model.RevenueAno[^1].M : "sem faturação";
+            }
+            <div style="display:flex;gap:28px;align-items:flex-end;">
+                <div>
+                    <div class="num" id="revHead" style="font-size:32px;font-weight:700;letter-spacing:-0.02em;">@HeadVal(Model.Revenue)</div>
+                    <div class="muted" id="revCap" style="font-size:13px;font-weight:600;">@capM</div>
+                    <div style="display:flex;gap:16px;margin-top:16px;">
+                        <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:11px;height:11px;border-radius:4px;background:var(--accent);"></span>Recebido</span>
+                        <span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-2);"><span style="width:11px;height:11px;border-radius:4px;background:var(--accent-soft2);"></span>Em aberto</span>
+                    </div>
+                </div>
+                <div style="flex:1;">
+                    <div data-rev="m">@Components.BarChart(Model.Revenue, 150)</div>
+                    <div data-rev="t" style="display:none;">@Components.BarChart(Model.RevenueTri, 150)</div>
+                    <div data-rev="a" style="display:none;">@Components.BarChart(Model.RevenueAno, 150)</div>
+                </div>
+            </div>
+            <script>
+                var revData = @Json.Serialize(new
+                {
+                    m = new { head = HeadVal(Model.Revenue), cap = capM },
+                    t = new { head = HeadVal(Model.RevenueTri), cap = capT },
+                    a = new { head = HeadVal(Model.RevenueAno), cap = capA },
+                });
+                function setRevPeriod(p) {
+                    document.querySelectorAll('[data-rev]').forEach(d => d.style.display = d.dataset.rev === p ? '' : 'none');
+                    document.querySelectorAll('#revSeg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+                    document.getElementById('revHead').textContent = revData[p].head;
+                    document.getElementById('revCap').textContent = revData[p].cap;
+                }
+            </script>
+        </div>
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Estado da faturação</h3></div><a class="btn btn-soft btn-sm card-h more" asp-controller="Payments" asp-action="Index">Financeiro @Icons.Render("arrowRight", 14)</a></div>
+            <div style="display:flex;align-items:center;gap:20px;">
+                @Components.Donut(new[] { ((double)Model.PagoPct, "var(--success)"), ((double)Model.PendentePct, "var(--warning)"), ((double)Model.VencidoPct, "var(--danger)") }, 126)
+                <div style="display:flex;flex-direction:column;gap:13px;">
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--success);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:66px;">Pago</span><span class="num" style="font-weight:700;font-size:15px;">@Model.PagoPct%</span></div>
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--warning);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:66px;">Pendente</span><span class="num" style="font-weight:700;font-size:15px;">@Model.PendentePct%</span></div>
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--danger);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:66px;">Vencido</span><span class="num" style="font-weight:700;font-size:15px;">@Model.VencidoPct%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ===== Portfólio em foco ===== *@
+    <div style="display:flex;align-items:center;gap:12px;margin:26px 0 16px;">
+        <h2 class="display" style="font-size:19px;font-weight:700;letter-spacing:-0.015em;margin:0;">Portfólio em foco</h2>
+        <span class="muted-3" style="font-size:13.5px;font-weight:600;">@Model.ProjetosAtivos ativos · @Model.EmRisco em risco</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+            <a class="btn btn-soft btn-sm" asp-controller="Gantt" asp-action="Index">@Icons.Render("gantt", 15) Cronograma global</a>
+            <a class="btn btn-soft btn-sm" asp-controller="Projects" asp-action="Index">Ver todos os projetos @Icons.Render("arrowRight", 15)</a>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:2.2fr 1fr;align-items:start;">
+        <div class="grid cols-2">
+            @foreach (var f in Model.Focus)
+            {
+                var p = f.Project;
+                <a class="card card-pad rise" href="@Url.Action("Details","Projects", new { id = p.Id })" style="color:inherit;display:flex;flex-direction:column;gap:13px;">
+                    <div style="display:flex;align-items:flex-start;gap:11px;">
+                        <div style="width:44px;height:44px;border-radius:11px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;flex-shrink:0;">@Icons.Render("building", 22)</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:700;font-size:14.5px;line-height:1.3;">@p.Name</div>
+                            <div class="muted-3" style="font-size:12px;font-weight:600;">@p.Code · @(p.Client?.Company ?? "—")</div>
+                        </div>
+                        <span title="@HL(p.Health)" style="color:@HC(p.Health);">@Components.HealthDot(p.Health)</span>
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12.5px;"><span class="muted" style="font-weight:600;">@(p.PhaseCurrent ?? "—")</span><span class="num" style="font-weight:700;">@f.Progress%</span></div>
+                        @Components.Progress(f.Progress, thin: true)
+                    </div>
+                    <div class="divider" style="margin:0;"></div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div style="display:flex;gap:13px;color:var(--text-3);font-size:12.5px;font-weight:700;">
+                            <span style="display:inline-flex;align-items:center;gap:4px;" title="Tarefas abertas">@Icons.Render("checkSquare", 14)@f.OpenTasks</span>
+                            <span style="display:inline-flex;align-items:center;gap:4px;color:@(f.Overdue > 0 ? "var(--danger)" : "var(--text-3)");" title="Em atraso">@Icons.Render("alert", 14)@f.Overdue</span>
+                            <span style="display:inline-flex;align-items:center;gap:4px;" title="Entregáveis">@Icons.Render("layers", 14)@f.Deliverables</span>
+                        </div>
+                        @Components.AvStack(f.Team, 3, 27)
+                    </div>
+                </a>
+            }
+        </div>
+
+        <div class="grid" style="gap:20px;">
+            <div class="card card-pad">
+                <div class="card-h"><div><h3>Carga da equipa</h3><span class="sub">Tarefas ativas por pessoa</span></div></div>
+                <div style="display:flex;flex-direction:column;gap:15px;">
+                    @foreach (var w in Model.Workload)
+                    {
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            @Components.Avatar(w.Name, 34)
+                            <div style="flex:1;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span style="font-weight:700;font-size:13px;">@(w.Name.Split(' ').FirstOrDefault())</span><span class="num muted" style="font-weight:700;font-size:12px;">@w.Tasks tarefas</span></div>
+                                @Components.Progress(w.Pct, thin: true, color: w.Pct > 90 ? "var(--danger)" : "var(--grad-gold)")
+                            </div>
+                        </div>
+                    }
+                </div>
+                <a class="btn btn-ghost btn-sm" asp-controller="Timesheets" asp-action="Index" style="width:100%;justify-content:center;margin-top:14px;">Registo de horas e utilização @Icons.Render("arrowRight", 14)</a>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h"><div><h3>Aprovações pendentes</h3></div><span class="badge b-red card-h more">@Model.Approvals.Count</span></div>
+                <div style="display:flex;flex-direction:column;gap:11px;">
+                    @foreach (var a in Model.Approvals)
+                    {
+                        <div style="display:flex;gap:11px;align-items:center;padding:11px;border:1px solid var(--border);border-radius:var(--r-sm);">
+                            @Components.Avatar(a.RequestedByUser?.Name, 34)
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:700;font-size:13px;">@a.Title</div>
+                                <div class="muted-3" style="font-size:11.5px;font-weight:600;">@(a.Project?.Code ?? "—") · @a.Type</div>
+                            </div>
+                            <form asp-controller="Approvals" asp-action="Approve" asp-route-id="@a.Id" asp-route-returnUrl="@Url.Action("Index","Home")" method="post" style="margin:0;">
+                                <button class="btn btn-primary btn-sm" type="submit" style="padding:7px 11px;" title="Aprovar">@Icons.Render("check", 14)</button>
+                            </form>
+                        </div>
+                    }
+                    @if (Model.Approvals.Count == 0) { <div class="muted" style="font-size:13px;">Sem aprovações pendentes.</div> }
+                </div>
+                <a class="btn btn-ghost btn-sm" asp-controller="Approvals" asp-action="Index" style="width:100%;justify-content:center;margin-top:12px;">Ver todas as aprovações</a>
+            </div>
+        </div>
+    </div>
+</div>

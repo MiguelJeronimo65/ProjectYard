@@ -22,25 +22,43 @@ CREATE TABLE tenants (
   UNIQUE KEY uq_tenant_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- A tabela `users` é o STORE de utilizadores do ASP.NET Identity (mapeada via ToTable("users"), chave BIGINT).
+-- Colunas Identity em snake_case (mapeadas no DbContext). Colunas de domínio ProjectYard mantidas.
 CREATE TABLE users (
-  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  tenant_id       BIGINT NULL,                       -- NULL = utilizador de plataforma
-  name            VARCHAR(160) NOT NULL,
-  email           VARCHAR(190) NOT NULL,
-  phone           VARCHAR(40)  NULL,
-  user_type       ENUM('platform','tenant') NOT NULL DEFAULT 'tenant',
-  role            ENUM('Superadmin','Owner','Administrador','Gestor','Membro','Cliente') NOT NULL DEFAULT 'Membro',
-  is_superadmin   TINYINT(1) NOT NULL DEFAULT 0,
-  is_tenant_admin TINYINT(1) NOT NULL DEFAULT 0,
-  funcao          VARCHAR(120) NULL,                 -- cargo (ex.: Arquiteto Sénior)
-  cost_hour       DECIMAL(8,2) NULL,                 -- Custo Hora (€)
-  status          ENUM('Ativo','Pendente','Inativo') NOT NULL DEFAULT 'Pendente',
-  active          TINYINT(1) NOT NULL DEFAULT 1,
-  avatar_url      VARCHAR(255) NULL,
-  last_active_at  DATETIME NULL,
-  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_user_email (tenant_id, email),
+  id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id              BIGINT NULL,                       -- NULL = utilizador de plataforma
+  name                   VARCHAR(160) NOT NULL,             -- nome a mostrar (não é do Identity)
+  -- ---- ASP.NET Identity (IdentityUser<long>) ----
+  user_name              VARCHAR(256) NULL,                 -- UserName
+  normalized_user_name   VARCHAR(256) NULL,                 -- NormalizedUserName
+  email                  VARCHAR(190) NOT NULL,             -- Email
+  normalized_email       VARCHAR(190) NULL,                 -- NormalizedEmail
+  email_confirmed        TINYINT(1) NOT NULL DEFAULT 0,     -- EmailConfirmed
+  password_hash          VARCHAR(255) NULL,                 -- PasswordHash (NULL enquanto convite pendente)
+  security_stamp         VARCHAR(255) NULL,                 -- SecurityStamp
+  concurrency_stamp      VARCHAR(255) NULL,                 -- ConcurrencyStamp (token de concorrência)
+  phone                  VARCHAR(40)  NULL,                 -- PhoneNumber
+  phone_number_confirmed TINYINT(1) NOT NULL DEFAULT 0,     -- PhoneNumberConfirmed
+  two_factor_enabled     TINYINT(1) NOT NULL DEFAULT 0,     -- TwoFactorEnabled
+  lockout_enabled        TINYINT(1) NOT NULL DEFAULT 1,     -- LockoutEnabled
+  locked_until           DATETIME(6) NULL,                  -- LockoutEnd (DateTimeOffset)
+  failed_attempts        INT NOT NULL DEFAULT 0,            -- AccessFailedCount
+  -- ---- Domínio ProjectYard ----
+  user_type              ENUM('platform','tenant') NOT NULL DEFAULT 'tenant',
+  role                   ENUM('Superadmin','Owner','Administrador','Gestor','Membro','Cliente') NOT NULL DEFAULT 'Membro', -- denormalizado; autorização efetiva via user_roles
+  is_superadmin          TINYINT(1) NOT NULL DEFAULT 0,
+  is_tenant_admin        TINYINT(1) NOT NULL DEFAULT 0,
+  funcao                 VARCHAR(120) NULL,                 -- cargo (ex.: Arquiteto Sénior)
+  cost_hour              DECIMAL(8,2) NULL,                 -- Custo Hora (€)
+  status                 ENUM('Ativo','Pendente','Inativo') NOT NULL DEFAULT 'Pendente',
+  active                 TINYINT(1) NOT NULL DEFAULT 1,
+  avatar_url             VARCHAR(255) NULL,
+  last_active_at         DATETIME NULL,
+  created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_email (tenant_id, email),               -- email único por tenant (regra multi-tenant)
   KEY ix_user_tenant (tenant_id),
+  KEY ix_user_norm_username (normalized_user_name),          -- lookup do Identity (NÃO único: ver nota multi-tenant)
+  KEY ix_user_norm_email (normalized_email),
   CONSTRAINT fk_user_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -63,6 +81,64 @@ CREATE TABLE user_invites (
   CONSTRAINT fk_invite_user FOREIGN KEY (invited_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================ ASP.NET IDENTITY (papéis / claims / logins / tokens)
+-- A tabela `users` (acima) é o store de utilizadores. Estas completam o modelo Identity.
+-- Chaves BIGINT para alinhar com users.id. Nomes em snake_case (mapeados no DbContext via ToTable/HasColumnName).
+
+CREATE TABLE roles (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name              VARCHAR(256) NULL,                 -- Name (ex.: Owner, Gestor)
+  normalized_name   VARCHAR(256) NULL,                 -- NormalizedName
+  concurrency_stamp VARCHAR(255) NULL,
+  UNIQUE KEY uq_role_normalized_name (normalized_name)  -- RoleNameIndex (papéis são globais à plataforma)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_roles (
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  KEY ix_user_roles_role (role_id),
+  CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE role_claims (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  role_id     BIGINT NOT NULL,
+  claim_type  VARCHAR(255) NULL,
+  claim_value VARCHAR(255) NULL,
+  KEY ix_role_claims_role (role_id),
+  CONSTRAINT fk_rc_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_claims (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id     BIGINT NOT NULL,
+  claim_type  VARCHAR(255) NULL,
+  claim_value VARCHAR(255) NULL,
+  KEY ix_user_claims_user (user_id),
+  CONSTRAINT fk_uc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_logins (
+  login_provider        VARCHAR(128) NOT NULL,
+  provider_key          VARCHAR(128) NOT NULL,
+  provider_display_name VARCHAR(255) NULL,
+  user_id               BIGINT NOT NULL,
+  PRIMARY KEY (login_provider, provider_key),
+  KEY ix_user_logins_user (user_id),
+  CONSTRAINT fk_ul_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_tokens (
+  user_id        BIGINT NOT NULL,
+  login_provider VARCHAR(128) NOT NULL,
+  name           VARCHAR(128) NOT NULL,
+  value          TEXT NULL,
+  PRIMARY KEY (user_id, login_provider, name),
+  CONSTRAINT fk_ut_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================ CRM / CLIENTES
 
 CREATE TABLE clients (
@@ -77,6 +153,8 @@ CREATE TABLE clients (
   city        VARCHAR(120) NULL,
   stage       VARCHAR(40)  NULL,                     -- funil CRM
   status      ENUM('Lead','Ativo','Em risco','Concluído') NOT NULL DEFAULT 'Lead',
+  last_activity    VARCHAR(200) NULL,                -- última atividade (ex.: "Aprovou Arquitetura")
+  last_activity_at DATETIME NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_client_tenant (tenant_id),
   CONSTRAINT fk_client_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
@@ -92,7 +170,7 @@ CREATE TABLE projects (
   client_id        BIGINT NULL,
   manager_user_id  BIGINT NULL,                      -- Gestor
   type             VARCHAR(80) NULL,
-  status           ENUM('Proposta','Em curso','Em risco','Concluído','Suspenso') NOT NULL DEFAULT 'Em curso',
+  status           ENUM('Proposta','Em curso','Em risco','Concluído','Suspenso','Cancelado') NOT NULL DEFAULT 'Em curso',
   priority         ENUM('Alta','Média','Baixa') NOT NULL DEFAULT 'Média',
   health           ENUM('green','amber','red') NOT NULL DEFAULT 'green',
   phase_current    VARCHAR(80) NULL,
@@ -117,6 +195,20 @@ CREATE TABLE projects (
   CONSTRAINT fk_project_tenant  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_project_client  FOREIGN KEY (client_id) REFERENCES clients(id),
   CONSTRAINT fk_project_manager FOREIGN KEY (manager_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Histórico de mudanças de estado do projeto (data do evento + observação opcional + autor).
+-- Cada mudança de estado (incl. Cancelado) acrescenta uma linha — não substitui.
+CREATE TABLE project_status_history (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  project_id  BIGINT NOT NULL,
+  status      VARCHAR(20) NOT NULL,                  -- estado para que mudou
+  note        VARCHAR(500) NULL,                     -- observação (não obrigatória)
+  changed_by  BIGINT NULL,
+  changed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_psh_project (project_id, changed_at),
+  CONSTRAINT fk_psh_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_psh_user    FOREIGN KEY (changed_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE project_members (
@@ -181,12 +273,36 @@ CREATE TABLE tasks (
   assignee_id BIGINT NULL,
   due_date    DATE NULL,
   overdue     TINYINT(1) NOT NULL DEFAULT 0,
+  tags        VARCHAR(200) NULL,                     -- etiquetas separadas por vírgula (ex.: "Topografia,Materiais")
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_task_project (project_id),
   CONSTRAINT fk_task_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_task_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_task_phase   FOREIGN KEY (phase_id)   REFERENCES project_phases(id),
   CONSTRAINT fk_task_user    FOREIGN KEY (assignee_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Checklist do cartão Kanban (protótipo: "3/5" com barra de progresso)
+CREATE TABLE task_checklist_items (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  task_id    BIGINT NOT NULL,
+  title      VARCHAR(220) NOT NULL,
+  done       TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  KEY ix_tci_task (task_id),
+  CONSTRAINT fk_tci_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Comentários de tarefa (contador no cartão Kanban)
+CREATE TABLE task_comments (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  task_id    BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_tc_task (task_id),
+  CONSTRAINT fk_tc_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tc_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================ REGISTO DE HORAS
@@ -231,6 +347,22 @@ CREATE TABLE deliverables (
   CONSTRAINT fk_deliv_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_deliv_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_deliv_owner   FOREIGN KEY (owner_id)   REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Histórico de versões do entregável (protótipo: secção "Histórico de versões" v1/v2…)
+CREATE TABLE deliverable_versions (
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  deliverable_id BIGINT NOT NULL,
+  version        VARCHAR(12) NOT NULL,               -- v1, v2…
+  status         VARCHAR(40) NULL,                   -- ex.: Aprovado, Precisa revisão
+  note           VARCHAR(255) NULL,
+  document_id    BIGINT NULL,                        -- ficheiro associado à versão
+  created_by     BIGINT NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_dv_deliv (deliverable_id),
+  CONSTRAINT fk_dv_deliv FOREIGN KEY (deliverable_id) REFERENCES deliverables(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dv_doc   FOREIGN KEY (document_id)    REFERENCES documents(id),
+  CONSTRAINT fk_dv_user  FOREIGN KEY (created_by)     REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE documents (
@@ -299,6 +431,8 @@ CREATE TABLE approvals (
   priority     ENUM('Alta','Média','Baixa') NOT NULL DEFAULT 'Média',
   status       ENUM('Aberta','Aprovada','Devolvida') NOT NULL DEFAULT 'Aberta',
   note         TEXT NULL,
+  return_reason VARCHAR(160) NULL,                   -- motivo da devolução (dropdown do protótipo)
+  decided_at   DATETIME NULL,                        -- data da decisão (KPI "Aprovadas (semana)")
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_appr_tenant (tenant_id),
   CONSTRAINT fk_appr_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
@@ -421,11 +555,37 @@ CREATE TABLE sms_messages (
   phone       VARCHAR(40) NOT NULL,
   body        VARCHAR(480) NOT NULL,
   is_auto     TINYINT(1) NOT NULL DEFAULT 0,
+  read_at     DATETIME NULL,                         -- inbound: badge de não-lidas na lista de threads
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_sms_tenant (tenant_id),
   CONSTRAINT fk_sms_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
   CONSTRAINT fk_sms_client  FOREIGN KEY (client_id)  REFERENCES clients(id),
   CONSTRAINT fk_sms_project FOREIGN KEY (project_id) REFERENCES projects(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================ CALENDÁRIO
+
+-- Eventos manuais do calendário (reuniões, visitas de obra, pessoal).
+-- Prazos, entregáveis, faturação e aprovações continuam a ser derivados das tabelas respetivas.
+CREATE TABLE events (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT NOT NULL,
+  project_id    BIGINT NULL,
+  category      VARCHAR(40) NOT NULL,                -- 'reuniao' | 'obra' | 'pessoal' (gerível via lookups)
+  title         VARCHAR(220) NOT NULL,
+  event_date    DATE NOT NULL,
+  start_time    TIME NULL,
+  end_time      TIME NULL,
+  location      VARCHAR(200) NULL,
+  notes         VARCHAR(255) NULL,
+  owner_user_id BIGINT NULL,                         -- responsável/participante principal
+  created_by    BIGINT NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_event_tenant_date (tenant_id, event_date),
+  CONSTRAINT fk_event_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_event_project FOREIGN KEY (project_id)    REFERENCES projects(id),
+  CONSTRAINT fk_event_owner   FOREIGN KEY (owner_user_id) REFERENCES users(id),
+  CONSTRAINT fk_event_creator FOREIGN KEY (created_by)    REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================ CONFIGURAÇÃO

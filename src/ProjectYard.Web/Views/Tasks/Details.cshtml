@@ -1,0 +1,105 @@
+@model ProjectYard.Data.Entities.Task
+@{
+    ViewData["Title"] = "Tarefa";
+    var checklist = (List<ProjectYard.Data.Entities.TaskChecklistItem>)ViewBag.ChecklistItems ?? new();
+    var comments = (List<ProjectYard.Data.Entities.TaskComment>)ViewBag.Comments ?? new();
+    var authors = (Dictionary<long, string>)ViewBag.CommentAuthors ?? new();
+    var stateNames = new Dictionary<string, string> { ["todo"] = "Por fazer", ["doing"] = "Em curso", ["review"] = "Em revisão", ["done"] = "Concluído" };
+    var done = checklist.Count(c => c.Done);
+    var pct = checklist.Count > 0 ? (int)Math.Round(done * 100.0 / checklist.Count) : 0;
+    var tags = string.IsNullOrWhiteSpace(Model.Tags) ? "" : Model.Tags;
+    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);";
+}
+<div class="content">
+    <div class="breadcrumb"><a href="@Url.Action("Index")">Tarefas</a>@Icons.Render("chevR", 13)<a href="@Url.Action("Details", "Projects", new { id = Model.ProjectId })">@(Model.Project?.Code ?? "—")</a></div>
+    <div class="page-head">
+        <div><h1>@Model.Title</h1><p>@(Model.Project?.Name ?? "—") · @(stateNames.GetValueOrDefault(Model.State, Model.State))</p></div>
+        <div class="page-head__actions">
+            <a class="btn btn-ghost" href="@Url.Action("Index")">@Icons.Render("chevL", 16) Voltar</a>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1.6fr 1fr;align-items:start;gap:20px;">
+        @* ===== Coluna principal: checklist + comentários ===== *@
+        <div class="grid" style="gap:20px;">
+            <div class="card card-pad">
+                <div class="card-h" style="align-items:flex-start;">
+                    <div><h3>Checklist</h3><span class="sub">@done de @checklist.Count concluídos</span></div>
+                    @if (checklist.Count > 0) { <span class="num muted card-h more" style="font-weight:700;">@pct%</span> }
+                </div>
+                @if (checklist.Count > 0)
+                {
+                    <div style="margin:6px 0 16px;">@Components.Progress(pct, thin: true)</div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        @foreach (var c in checklist)
+                        {
+                            <div style="display:flex;align-items:center;gap:11px;padding:8px 6px;border-radius:var(--r-sm);">
+                                <form asp-action="ToggleChecklistItem" asp-route-id="@c.Id" method="post" style="margin:0;display:inline-flex;">
+                                    <button type="submit" title="@(c.Done ? "Marcar por fazer" : "Marcar feito")" style="width:20px;height:20px;border-radius:6px;border:1.5px solid @(c.Done ? "var(--success)" : "var(--border-2)");background:@(c.Done ? "var(--success)" : "transparent");display:grid;place-items:center;cursor:pointer;flex-shrink:0;color:#fff;">@if (c.Done) { @Icons.Render("check", 12) }</button>
+                                </form>
+                                <span style="flex:1;font-size:13.5px;font-weight:600;@(c.Done ? "text-decoration:line-through;color:var(--text-3);" : "")">@c.Title</span>
+                                <form asp-action="DeleteChecklistItem" asp-route-id="@c.Id" method="post" style="margin:0;"><button class="icon-btn" type="submit" style="width:28px;height:28px;" title="Remover">@Icons.Render("x", 13)</button></form>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="muted" style="font-size:13px;font-weight:600;margin-bottom:14px;">Sem itens — adiciona o primeiro abaixo.</div>
+                }
+                <form asp-action="AddChecklistItem" method="post" style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+                    <input type="hidden" name="taskId" value="@Model.Id" />
+                    <div class="fld__box" style="flex:1;height:42px;"><input name="title" placeholder="Novo item da checklist…" required /></div>
+                    <button class="btn btn-primary btn-sm" type="submit">@Icons.Render("plus", 14) Adicionar</button>
+                </form>
+            </div>
+
+            <div class="card card-pad">
+                <div class="card-h"><div><h3>Comentários</h3><span class="sub">@comments.Count @(comments.Count == 1 ? "comentário" : "comentários")</span></div></div>
+                <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;">
+                    @if (comments.Count == 0)
+                    {
+                        <div class="muted" style="font-size:13px;font-weight:600;">Ainda sem comentários.</div>
+                    }
+                    @foreach (var c in comments)
+                    {
+                        var name = authors.GetValueOrDefault(c.UserId, "—");
+                        <div style="display:flex;gap:11px;align-items:flex-start;">
+                            @Components.Avatar(name, 32)
+                            <div style="flex:1;">
+                                <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-weight:700;font-size:13px;">@name</span><span class="muted-3" style="font-size:11.5px;font-weight:600;">@c.CreatedAt.ToString("dd MMM yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"))</span></div>
+                                <div style="font-size:13.5px;line-height:1.5;margin-top:3px;">@c.Body</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <form asp-action="AddComment" method="post" style="display:flex;gap:10px;align-items:flex-end;border-top:1px solid var(--border);padding-top:14px;">
+                    <input type="hidden" name="taskId" value="@Model.Id" />
+                    <div class="fld__box" style="flex:1;align-items:flex-end;padding:0 14px;"><textarea name="body" rows="2" required placeholder="Escreve um comentário…" style="flex:1;border:none;outline:none;background:transparent;resize:none;padding:11px 0;font-size:14px;font-family:inherit;color:var(--text);"></textarea></div>
+                    <button class="btn btn-primary" type="submit" style="height:46px;">@Icons.Render("plus", 16) Comentar</button>
+                </form>
+            </div>
+        </div>
+
+        @* ===== Coluna lateral: detalhes editáveis ===== *@
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Detalhes</h3></div></div>
+            <form asp-action="UpdateTask" method="post">
+                <input type="hidden" name="taskId" value="@Model.Id" />
+                <div class="fld"><label>Prioridade</label><div class="fld__box" style="height:44px;"><select name="priority" style="@sel()">@foreach (var p in new[] { "Alta", "Média", "Baixa" }) { <option selected="@(Model.Priority == p)">@p</option> }</select></div></div>
+                <div class="fld"><label>Responsável</label><div class="fld__box" style="height:44px;">
+                    <select name="assigneeId" style="@sel()"><option value="">— sem responsável —</option>@foreach (var u in (IEnumerable<dynamic>)ViewBag.People) { <option value="@u.Id" selected="@(Model.AssigneeId == (long)u.Id)">@u.Name</option> }</select>
+                </div></div>
+                <div class="fld"><label>Prazo</label><div class="fld__box" style="height:44px;"><input type="date" name="dueDate" value="@(Model.DueDate?.ToString("yyyy-MM-dd"))" style="@sel()" /></div></div>
+                <div class="fld"><label>Etiquetas</label><div class="fld__box" style="height:44px;"><input name="tags" value="@tags" placeholder="separadas por vírgula" /></div><span class="muted-3" style="font-size:11.5px;font-weight:600;">Ex.: Arquitetura, Licenciamento</span></div>
+                <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;margin-top:6px;">Guardar detalhes</button>
+            </form>
+            <div class="divider"></div>
+            <div style="display:flex;flex-direction:column;gap:9px;font-size:13px;">
+                <div style="display:flex;justify-content:space-between;"><span class="muted" style="font-weight:600;">Projeto</span><a href="@Url.Action("Details", "Projects", new { id = Model.ProjectId })" style="font-weight:700;color:var(--primary-700);">@(Model.Project?.Code ?? "—")</a></div>
+                @if (Model.Phase != null) { <div style="display:flex;justify-content:space-between;"><span class="muted" style="font-weight:600;">Fase</span><span style="font-weight:700;">@Model.Phase.Name</span></div> }
+                <div style="display:flex;justify-content:space-between;"><span class="muted" style="font-weight:600;">Estado</span><span style="font-weight:700;">@(stateNames.GetValueOrDefault(Model.State, Model.State))</span></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,298 @@
+@using System.Security.Claims
+@inject ProjectYard.Data.Data.AppDbContext Db
+@{
+    var ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var isSuper = User.FindFirstValue(AppUserClaimsPrincipalFactory.IsSuperadmin) == "true";
+    var displayName = User.FindFirstValue(AppUserClaimsPrincipalFactory.DisplayName) ?? User.Identity?.Name ?? "Utilizador";
+    var role = User.IsInRole("Superadmin") ? "Superadmin"
+        : User.IsInRole("Owner") ? "Owner"
+        : User.IsInRole("Administrador") ? "Administrador"
+        : User.IsInRole("Gestor") ? "Gestor"
+        : User.IsInRole("Cliente") ? "Cliente" : "Membro";
+
+    ProjectYard.Data.Entities.Tenant? tenant = Db.CurrentTenantId is { } tid ? Db.Tenants.Find(tid) : null;
+    var inPlatformMode = isSuper && tenant != null;
+    var tenantName = tenant?.Name ?? (isSuper ? "Acesso de plataforma" : "Workspace");
+    var tenantSub = isSuper ? "Acesso de plataforma" : (tenant != null ? "Plano " + tenant.Plan : "Workspace");
+    var tenantColor = tenant?.PrimaryColor ?? "#2c3e51";
+
+    // Foto de perfil + logo do workspace + impersonate
+    string? myAvatar = null, tenantLogo = null;
+    var impersonatorName = User.FindFirstValue("impersonator_name");
+    try
+    {
+        if (long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var myId))
+            myAvatar = Db.Users.Where(u => u.Id == myId).Select(u => u.AvatarUrl).FirstOrDefault();
+        if (Db.CurrentTenantId is { } tlid)
+            tenantLogo = Db.Settings.Where(s => s.TenantId == tlid && s.Param == "tenant.logo").Select(s => s.Value).FirstOrDefault();
+    }
+    catch { /* sem BD não há foto/logo */ }
+
+    // Badges com dados reais (no modo consola são agregados da plataforma)
+    int tasksBadge = 0, delivBadge = 0, apprBadge = 0;
+    try
+    {
+        tasksBadge = Db.Tasks.Count(t => t.Overdue || t.State == "review");
+        delivBadge = Db.Deliverables.Count(d => d.Status == "Em aprovação");
+        apprBadge = Db.Approvals.Count(a => a.Status == "Aberta");
+    }
+    catch { /* sem BD não há badges */ }
+
+    int trialDaysLeft = 0, trialDaysUsed = 0;
+    var showTrial = tenant is { Status: "Trial", TrialEndsAt: not null };
+    if (showTrial)
+    {
+        trialDaysLeft = Math.Max(0, tenant!.TrialEndsAt!.Value.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber);
+        trialDaysUsed = Math.Clamp(30 - trialDaysLeft, 0, 30);
+    }
+
+    // (controller, label, icon, built, badge)
+    var groups = new (string label, (string ctrl, string label, string icon, bool built, int badge)[] items)[]
+    {
+        ("Workspace", new[]
+        {
+            ("Home", "Dashboard", "grid", true, 0),
+            ("Projects", "Projetos", "folder", true, 0),
+            ("Tasks", "Tasks", "checkSquare", true, tasksBadge),
+            ("Gantt", "Cronograma", "gantt", true, 0),
+            ("Calendar", "Calendário", "calendar", true, 0),
+            ("Timesheets", "Registo de horas", "clock", true, 0),
+        }),
+        ("Comercial", new[]
+        {
+            ("Clients", "Clientes", "users", true, 0),
+            ("Deliverables", "Entregáveis", "layers", true, delivBadge),
+            ("Payments", "Pagamentos", "card", true, 0),
+        }),
+        ("Comunicação", new[]
+        {
+            ("Chat", "Chat", "message", true, 0),
+            ("Mail", "Correio", "mail", true, 0),
+            ("Sms", "SMS", "sms", true, 0),
+        }),
+        ("Controlo", new[]
+        {
+            ("Reports", "Relatórios", "trend", true, 0),
+            ("Gantt", "Cronograma global", "gantt", true, 0),
+            ("Approvals", "Aprovações", "shield", true, apprBadge),
+            ("Documents", "Documentos", "fileText", true, 0),
+            ("Risks", "Riscos", "alert", true, 0),
+        }),
+    };
+}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " · ProjectYard" : "ProjectYard")</title>
+    <link rel="icon" href="~/assets/projectyard-icon.png" />
+    <script>
+        // Tema (dia/noite/auto) — aplicado antes do primeiro paint para não piscar.
+        (function () {
+            var t = localStorage.getItem('py-theme') || 'auto';
+            var dark = t === 'noite' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+            window.__pyTheme = t;
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/projectyard.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/py-loader.css" asp-append-version="true" />
+</head>
+<body>
+@await Html.PartialAsync("_Splash")
+<div class="app" id="pyApp">
+    <div class="side-backdrop" id="sideBackdrop" style="display:none;" onclick="toggleNav(false)"></div>
+    <aside class="sidebar side--dark" id="pySidebar">
+        <div class="brand">
+            <div class="brand__logo"><img src="~/assets/projectyard-icon.png" alt="ProjectYard" /></div>
+            <div class="brand__name">ProjectYard<small>Plan · Build · Deliver</small></div>
+            <button class="collapse-btn" type="button" onclick="toggleCollapse()" title="Encolher menu" aria-label="Encolher menu">@Icons.Render("chevL", 16)</button>
+        </div>
+
+        <div class="ws-wrap">
+            <div class="user-chip" style="width:100%;margin-bottom:8px;">
+                @if (tenantLogo != null)
+                {
+                    <span class="avatar sq" style="width:34px;height:34px;overflow:hidden;background:#fff;"><img src="@tenantLogo" alt="@tenantName" style="width:100%;height:100%;object-fit:cover;display:block;" /></span>
+                }
+                else
+                {
+                    <span class="avatar sq" style="width:34px;height:34px;background:@tenantColor;font-size:12.5px;">@Components.Initials(tenantName)</span>
+                }
+                <div style="min-width:0;flex:1;text-align:left;">
+                    <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@tenantName</div>
+                    <div class="muted-3" style="font-size:11.5px;font-weight:600;">@tenantSub</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-scroll">
+            @if (isSuper)
+            {
+                <div class="nav-label">Plataforma</div>
+                <a class="nav-item @(ctrl == "Workspaces" ? "active" : "")" href="@Url.Action("Index","Workspaces")" title="Workspaces">
+                    @Icons.Render("building", 19)<span>Workspaces</span>
+                </a>
+                <a class="nav-item @(ctrl == "Compliance" ? "active" : "")" href="@Url.Action("Index","Compliance")" title="Conformidade RGPD">@Icons.Render("shield", 19)<span>Conformidade RGPD</span></a>
+            }
+            @foreach (var g in groups)
+            {
+                <div class="nav-label">@g.label</div>
+                @foreach (var n in g.items)
+                {
+                    // Pagamentos só para quem gere faturação (matriz de permissões).
+                    if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) { continue; }
+                    var isGlobalCrono = n.label == "Cronograma global";
+                    var url = !n.built ? "#" : isGlobalCrono ? Url.Action("Global", "Gantt") : Url.Action("Index", n.ctrl);
+                    var actAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+                    var active = n.built && ctrl == n.ctrl && !(isSuper && ctrl == "Workspaces")
+                        && (isGlobalCrono ? actAction == "Global" : (n.label != "Cronograma global" && actAction != "Global"));
+                    <a class="nav-item @(active ? "active" : "")" href="@url" title="@n.label" style="@(n.built ? "" : "opacity:.5;")">
+                        @Icons.Render(n.icon, 19)<span>@n.label</span>
+                        @if (n.badge > 0) { <span class="badge-count">@n.badge</span> }
+                    </a>
+                }
+            }
+        </div>
+
+        <div class="side-foot">
+            @if (showTrial)
+            {
+                <div class="trial-card">
+                    <div class="trial-card__title">@Icons.Render("spark", 14) Trial — @trialDaysLeft dias</div>
+                    <div class="trial-bar"><span style="width:@(trialDaysUsed * 100 / 30)%;"></span></div>
+                    <div class="muted" style="font-size:11.5px;font-weight:600;">Plano @tenant!.Plan · @trialDaysUsed de 30 dias usados</div>
+                    <button class="btn btn-primary btn-sm" type="button" style="width:100%;justify-content:center;margin-top:8px;">Fazer upgrade</button>
+                </div>
+            }
+            <a class="nav-item @(ctrl == "Settings" ? "active" : "")" href="@Url.Action("Index","Settings")">@Icons.Render("settings", 19)<span>Definições</span></a>
+            <div class="side-version" title="Versão da aplicação">@Ui.AppVersion</div>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <button class="icon-btn menu-btn" type="button" onclick="toggleNav(true)" aria-label="Menu">@Icons.Render("menu", 20)</button>
+            <button class="search" type="button" style="cursor:default;text-align:left;">
+                @Icons.Render("search", 18)
+                <input placeholder="Procurar projetos, tarefas, documentos…" readonly style="cursor:default;" />
+                <kbd style="font-size:11px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:6px;padding:2px 6px;">⌘K</kbd>
+            </button>
+            <div class="topbar__right">
+                @if (!isSuper || inPlatformMode)
+                {
+                    <a class="btn btn-primary btn-sm" style="height:42px;" asp-controller="Projects" asp-action="Create">@Icons.Render("plus", 17) <span class="btn-label">Novo projeto</span></a>
+                }
+                <button class="icon-btn" type="button" id="themeBtn" onclick="cycleTheme()" title="Tema">
+                    <span data-t="dia" style="display:none;">@Icons.Render("sun", 19)</span>
+                    <span data-t="noite" style="display:none;">@Icons.Render("moon", 19)</span>
+                    <span data-t="auto" style="display:none;">@Icons.Render("monitor", 19)</span>
+                </button>
+                <a class="icon-btn topbar-msg" asp-controller="Chat" asp-action="Index" title="Mensagens">@Icons.Render("message", 19)</a>
+                @await Component.InvokeAsync("Notifications")
+                <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
+                <div class="user-chip" style="border:none;padding:6px 8px;">
+                    @if (myAvatar != null)
+                    {
+                        <span class="avatar" style="width:36px;height:36px;overflow:hidden;background:var(--surface-2);"><img src="@myAvatar" alt="@displayName" style="width:100%;height:100%;object-fit:cover;display:block;" /></span>
+                    }
+                    else
+                    {
+                        <span class="avatar" style="width:36px;height:36px;background:#233140;font-size:13px;">@Components.Initials(displayName)</span>
+                    }
+                    <div style="text-align:left;">
+                        <div style="font-weight:700;font-size:13.5px;">@displayName</div>
+                        @if (isSuper)
+                        {
+                            <span class="badge b-navy" style="padding:1px 7px;font-size:10px;margin-top:2px;">@Icons.Render("shield", 10) Superadmin</span>
+                        }
+                        else
+                        {
+                            <div class="muted-3" style="font-size:11.5px;font-weight:600;">@role</div>
+                        }
+                    </div>
+                </div>
+                <form asp-controller="Account" asp-action="Logout" method="post" style="margin:0;">
+                    <button class="icon-btn" type="submit" title="Terminar sessão">@Icons.Render("logout", 19)</button>
+                </form>
+            </div>
+        </header>
+
+        @if (impersonatorName != null)
+        {
+            <div class="platform-bar" style="background:var(--accent-soft);color:var(--accent-700);">
+                @Icons.Render("eye", 15)
+                <span>A ver como <b>@displayName</b> (sessão de @impersonatorName)</span>
+                <form asp-controller="Account" asp-action="StopImpersonation" method="post" style="margin:0;margin-left:auto;">
+                    <button type="submit">@Icons.Render("chevL", 14) Voltar à minha conta</button>
+                </form>
+            </div>
+        }
+        else if (inPlatformMode)
+        {
+            <div class="platform-bar">
+                @Icons.Render("shield", 15)
+                <span>Modo plataforma · a ver <b>@tenant!.Name</b></span>
+                <form asp-controller="Workspaces" asp-action="Close" method="post" style="margin:0;margin-left:auto;">
+                    <button type="submit">@Icons.Render("chevL", 14) Voltar à consola</button>
+                </form>
+            </div>
+        }
+
+        @if (TempData["ok"] is string okMsg)
+        {
+            <div style="margin:18px 30px -8px;padding:12px 16px;border-radius:var(--r-sm);background:var(--success-soft);color:var(--success);font-weight:600;display:flex;align-items:center;gap:8px;">
+                @Icons.Render("check", 16) @okMsg
+            </div>
+        }
+        @RenderBody()
+    </div>
+</div>
+<script>
+    // Tema: ícone atual + ciclo auto → dia → noite → auto
+    function applyThemeIcon() {
+        document.querySelectorAll('#themeBtn [data-t]').forEach(s => s.style.display = s.dataset.t === window.__pyTheme ? 'inline-flex' : 'none');
+    }
+    function cycleTheme() {
+        var order = ['auto', 'dia', 'noite'];
+        window.__pyTheme = order[(order.indexOf(window.__pyTheme) + 1) % 3];
+        localStorage.setItem('py-theme', window.__pyTheme);
+        var dark = window.__pyTheme === 'noite' || (window.__pyTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.toggleAttribute('data-theme', false);
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+        applyThemeIcon();
+    }
+    applyThemeIcon();
+
+    // Encolher menu (persistido)
+    function toggleCollapse() {
+        var app = document.getElementById('pyApp');
+        app.classList.toggle('nav-collapsed');
+        localStorage.setItem('py-collapsed', app.classList.contains('nav-collapsed') ? '1' : '');
+    }
+    if (localStorage.getItem('py-collapsed') === '1') document.getElementById('pyApp').classList.add('nav-collapsed');
+
+    // Menu móvel
+    function toggleNav(open) {
+        document.getElementById('pySidebar').classList.toggle('open', open);
+        document.getElementById('sideBackdrop').style.display = open ? 'block' : 'none';
+    }
+
+    // Toast ligeiro global (disponível em todos os ecrãs).
+    window.PYToast = window.PYToast || function (msg) {
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:1500;padding:12px 18px;border-radius:10px;background:var(--navy);color:#fff;font-weight:600;font-size:13.5px;box-shadow:var(--sh-md);opacity:0;transition:opacity .2s;';
+        document.body.appendChild(t);
+        requestAnimationFrame(function () { t.style.opacity = '1'; });
+        setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 250); }, 2600);
+    };
+</script>
+@await Html.PartialAsync("_Loader")
+</body>
+</html>

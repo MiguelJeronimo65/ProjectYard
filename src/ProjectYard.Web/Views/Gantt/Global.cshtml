@@ -1,0 +1,53 @@
+@{
+    ViewData["Title"] = "Cronograma global";
+    int nProjetos = ViewBag.NProjetos, nFases = ViewBag.NFases, nCriticas = ViewBag.NCriticas, nAtraso = ViewBag.NAtraso;
+    int nConcluidas = ViewBag.NConcluidas, nCurso = ViewBag.NCurso, nInit = ViewBag.NInit;
+}
+<link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/8.0/dhtmlxgantt.css" />
+<link rel="stylesheet" href="~/css/gantt.css" asp-append-version="true" />
+<div class="content" style="max-width:1480px;">
+    <div class="page-head">
+        <div><h1>Cronograma global</h1><p>Portfólio · previsto vs real · projetos que atravessam anos</p></div>
+        <div class="page-head__actions">
+            <div class="chip-row" style="display:flex;gap:6px;">
+                <button type="button" class="chip" onclick="setZoom('Semana')">Semana</button>
+                <button type="button" class="chip active" onclick="setZoom('Mês')">Mês</button>
+                <button type="button" class="chip" onclick="setZoom('Trimestre')">Trimestre</button>
+                <button type="button" class="chip" onclick="setZoom('Ano')">Ano</button>
+            </div>
+            <a class="btn btn-soft btn-sm" asp-action="Index">@Icons.Render("gantt", 15) Ver por projeto</a>
+        </div>
+    </div>
+
+    @await Html.PartialAsync("_GanttLegend")
+
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+        <span class="chip" style="cursor:default;">@Icons.Render("layers", 14) @nProjetos projetos · @nFases fases</span>
+        <button type="button" class="chip active" data-f="" onclick="setGanttFilter(this,'')">Todas</button>
+        <button type="button" class="chip" data-f="crit" onclick="setGanttFilter(this,'crit')">@Icons.Render("alert", 13) @nCriticas críticas</button>
+        <button type="button" class="chip" data-f="late" onclick="setGanttFilter(this,'late')">@Icons.Render("clock", 13) @nAtraso em atraso</button>
+        <button type="button" class="chip" data-f="done" onclick="setGanttFilter(this,'done')">@Icons.Render("check", 13) @nConcluidas concluídas</button>
+        <button type="button" class="chip" data-f="curso" onclick="setGanttFilter(this,'curso')">@nCurso em curso</button>
+        <button type="button" class="chip" data-f="init" onclick="setGanttFilter(this,'init')">@nInit por iniciar</button>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        @if (nFases == 0)
+        {
+            <div class="empty" style="padding:60px 0;">@Icons.Render("gantt", 32)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem fases planeadas no portfólio</div></div>
+        }
+        else
+        {
+            <div id="gantt_here" style="width:100%;height:680px;"></div>
+        }
+    </div>
+</div>
+
+@if (nFases > 0)
+{
+    <script src="https://cdn.dhtmlx.com/gantt/8.0/dhtmlxgantt.js"></script>
+    <script>
+        var PY_DATA_URL = "@Url.Action("Data", "Gantt")";
+        @await Html.PartialAsync("_GanttScript")
+    </script>
+}

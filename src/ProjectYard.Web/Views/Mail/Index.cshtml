@@ -1,0 +1,90 @@
+@{
+    ViewData["Title"] = "Correio";
+    var emails = (ProjectYard.Web.Controllers.MailItem[])ViewBag.Emails;
+    var open = (ProjectYard.Web.Controllers.MailItem?)ViewBag.Open;
+    var folders = new[] { ("inbox", "Caixa de entrada", "mail", emails.Count(e => e.Unread)), ("sent", "Enviados", "arrowRight", 0), ("draft", "Rascunhos", "fileText", 0), ("starred", "Marcados", "spark", emails.Count(e => e.Starred)), ("archive", "Arquivo", "folder", 0) };
+    var labels = new[] { ("Clientes", "#6a5af9"), ("Entidades", "#2a7fb8"), ("Fornecedores", "#e0922a"), ("Faturação", "#1f9d6b") };
+}
+<div class="content" style="max-width:1440px;">
+    <div class="page-head"><div><h1>Correio</h1><p>Correspondência com clientes, entidades e fornecedores — ligada aos projetos</p></div></div>
+
+    <div class="card" style="overflow:hidden;display:grid;grid-template-columns:232px @(open != null ? "380px 1fr" : "1fr");min-height:640px;">
+        @* rail *@
+        <div style="border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:4px;">
+            <button class="btn btn-gold" type="button" style="justify-content:center;margin-bottom:12px;">@Icons.Render("plus", 17) Escrever</button>
+            @foreach (var (id, label, icon, count) in folders)
+            {
+                var on = id == "inbox";
+                <a href="@Url.Action("Index")" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);color:@(on ? "#fff" : "var(--text-2)");background:@(on ? "var(--grad)" : "transparent");font-weight:600;font-size:13.5px;">
+                    @Icons.Render(icon, 17)<span style="flex:1;">@label</span>
+                    @if (count > 0) { <span class="num" style="font-size:11.5px;font-weight:700;">@count</span> }
+                </a>
+            }
+            <div class="nav-label" style="padding:14px 12px 5px;">Etiquetas</div>
+            @foreach (var (label, color) in labels)
+            {
+                <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;font-weight:600;font-size:13px;color:var(--text-2);">
+                    <span style="width:10px;height:10px;border-radius:99px;background:@color;"></span>@label
+                </div>
+            }
+            <div class="muted-3" style="margin-top:auto;font-size:11.5px;font-weight:600;display:flex;gap:6px;align-items:flex-start;">@Icons.Render("spark", 12) Demonstração — a integração de email entra na Fase 3.</div>
+        </div>
+
+        @* lista *@
+        <div style="border-right:@(open != null ? "1px solid var(--border)" : "none");overflow-y:auto;">
+            @foreach (var e in emails)
+            {
+                var on = open?.Id == e.Id;
+                <a href="@Url.Action("Index", new { open = e.Id })" style="display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);color:inherit;background:@(on ? "var(--accent-soft)" : e.Unread ? "var(--surface)" : "transparent");">
+                    @Components.Avatar(e.From, 38)
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-weight:@(e.Unread ? "800" : "700");font-size:13.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@e.From</span>
+                            @if (e.Starred) { <span style="color:var(--accent);">@Icons.Render("spark", 13)</span> }
+                            <span class="muted-3" style="font-size:11px;font-weight:600;">@e.Time</span>
+                        </div>
+                        <div style="font-weight:@(e.Unread ? "700" : "600");font-size:13px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@e.Subject</div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">@e.Snippet</div>
+                        <div style="display:flex;gap:6px;margin-top:5px;align-items:center;">
+                            @if (e.Label != null) { <span class="badge" style="background:@(e.LabelColor)1f;color:@e.LabelColor;font-size:10.5px;padding:1px 8px;">@e.Label</span> }
+                            @if (e.Attach != null) { <span class="muted-3" style="font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;">@Icons.Render("fileText", 11) anexo</span> }
+                            <span class="muted-3" style="font-size:11px;font-weight:600;margin-left:auto;">@e.Project</span>
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+
+        @* leitura *@
+        @if (open != null)
+        {
+            <div style="display:flex;flex-direction:column;min-height:0;">
+                <div style="padding:18px 22px;border-bottom:1px solid var(--border);">
+                    <div style="display:flex;align-items:flex-start;gap:12px;">
+                        @Components.Avatar(open.From, 44)
+                        <div style="flex:1;min-width:0;">
+                            <h3 style="margin:0;font-size:17px;font-family:var(--font-display);letter-spacing:-0.01em;">@open.Subject</h3>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:3px;">@open.From &lt;@open.FromEmail&gt; · @open.Time</div>
+                        </div>
+                        @if (open.Label != null) { <span class="badge" style="background:@(open.LabelColor)1f;color:@open.LabelColor;">@open.Label</span> }
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:14px;">
+                        <button class="btn btn-soft btn-sm" type="button">Responder</button>
+                        <button class="btn btn-ghost btn-sm" type="button">Reencaminhar</button>
+                        <span class="badge b-gray" style="margin-left:auto;">@open.Project</span>
+                    </div>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:22px;font-size:14px;line-height:1.7;color:var(--text);">
+                    @foreach (var p in open.Body) { <p style="margin:0 0 14px;white-space:pre-line;">@p</p> }
+                    @if (open.Attach != null)
+                    {
+                        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);margin-top:8px;">
+                            @Icons.Render("fileText", 18)<span style="font-weight:700;font-size:13px;">@open.Attach</span>
+                            <button class="icon-btn" type="button" style="width:30px;height:30px;">@Icons.Render("download", 14)</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

@@ -1,0 +1,124 @@
+@{
+    ViewData["Title"] = "Calendário";
+    var month = (DateOnly)ViewBag.Month;
+    var events = (List<ProjectYard.Web.Controllers.CalEvent>)ViewBag.Events;
+    var cats = ProjectYard.Web.Controllers.CalendarController.Cats;
+    var meses = new[] { "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro" };
+    var today = DateOnly.FromDateTime(DateTime.Today);
+    int startDay = (int)new DateTime(month.Year, month.Month, 1).DayOfWeek;
+    var gridStart = month.AddDays(-startDay);
+    var cells = Enumerable.Range(0, 42).Select(i => gridStart.AddDays(i)).ToList();
+    string CatColor(string id) => cats.First(c => c.Id == id).Color;
+    var prevM = month.AddMonths(-1).ToString("yyyy-MM");
+    var nextM = month.AddMonths(1).ToString("yyyy-MM");
+    List<ProjectYard.Web.Controllers.CalEvent> EvFor(DateOnly d) => events.Where(e => e.Date == d).OrderByDescending(e => e.Time.HasValue).ThenBy(e => e.Time).ToList();
+    var projects = (IEnumerable<dynamic>)ViewBag.Projects;
+    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);";
+}
+<div class="content" style="max-width:1440px;">
+    <div class="page-head">
+        <div><h1>Calendário</h1><p>Reuniões, prazos, visitas de obra e aprovações da equipa</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('evOv').style.display='grid'">@Icons.Render("plus", 16) Novo evento</button>
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:248px 1fr;align-items:start;">
+        @* rail *@
+        <div class="grid" style="gap:18px;">
+            <a class="btn btn-gold" style="justify-content:center;" asp-controller="Tasks" asp-action="Index">@Icons.Render("plus", 17) Nova tarefa</a>
+            <div class="card card-pad">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+                    <span style="font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);">Tipos de evento</span>
+                    <a class="muted-3" asp-controller="Settings" asp-action="Index" title="Gerir em Definições › Listas" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--text-3);text-decoration:none;">@Icons.Render("settings", 13) Gerir</a>
+                </div>
+                @foreach (var c in cats)
+                {
+                    <label style="display:flex;align-items:center;gap:10px;padding:7px 0;font-weight:600;font-size:13.5px;color:var(--text-2);cursor:pointer;">
+                        <input type="checkbox" checked class="cal-cat" data-cat="@c.Id" onchange="filterCal()" style="width:17px;height:17px;accent-color:@c.Color;" />
+                        <span style="width:10px;height:10px;border-radius:99px;background:@c.Color;"></span>@c.Label
+                    </label>
+                }
+            </div>
+        </div>
+
+        @* main *@
+        <div class="card" style="overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);">
+                <a class="icon-btn" style="width:36px;height:36px;" href="@Url.Action("Index", new { m = prevM })" title="Anterior">@Icons.Render("chevL", 17)</a>
+                <a class="icon-btn" style="width:36px;height:36px;" href="@Url.Action("Index", new { m = nextM })" title="Seguinte">@Icons.Render("chevR", 17)</a>
+                <h2 class="display" style="font-size:21px;font-weight:700;letter-spacing:-0.02em;margin:0;">@meses[month.Month - 1] @month.Year</h2>
+                @if (month.Year != today.Year || month.Month != today.Month)
+                {
+                    <a class="chip" href="@Url.Action("Index")">Hoje</a>
+                }
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border);">
+                @foreach (var dn in new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" })
+                {
+                    <div style="padding:12px 0;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-3);">@dn</div>
+                }
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:116px;">
+                @foreach (var d in cells)
+                {
+                    var inMonth = d.Month == month.Month;
+                    var isToday = d == today;
+                    var evs = EvFor(d);
+                    <div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:7px 8px;overflow:hidden;background:@(inMonth ? "transparent" : "var(--surface-2)");@(isToday ? "box-shadow:inset 0 0 0 2px var(--accent);" : "")">
+                        <div class="num" style="font-size:12.5px;font-weight:700;color:@(isToday ? "var(--accent-700)" : inMonth ? "var(--text-2)" : "var(--text-3)");margin-bottom:5px;">@d.Day</div>
+                        <div style="display:flex;flex-direction:column;gap:3px;">
+                            @foreach (var e in evs.Take(3))
+                            {
+                                <div class="cal-ev" data-cat="@e.Cat" title="@(e.Time != null ? e.Time.Value.ToString("HH:mm") + " · " : "")@e.Title · @(e.Project ?? "")"
+                                     style="font-size:11px;font-weight:700;padding:2.5px 7px;border-radius:6px;background:@(CatColor(e.Cat))1f;color:@CatColor(e.Cat);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;">
+                                    @if (e.Time != null) { <span class="num" style="opacity:.8;">@e.Time.Value.ToString("HH:mm")</span> }
+                                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">@e.Title</span>
+                                    @if (e.Id != null) { <form asp-action="Delete" method="post" style="margin:0;display:inline;" onsubmit="event.stopPropagation();return confirm('Eliminar evento?')"><input type="hidden" name="id" value="@e.Id" /><input type="hidden" name="m" value="@month.ToString("yyyy-MM")" /><button type="submit" title="Eliminar" style="border:none;background:transparent;color:inherit;cursor:pointer;padding:0;display:grid;opacity:.7;">@Icons.Render("x", 11)</button></form> }
+                                </div>
+                            }
+                            @if (evs.Count > 3) { <div class="muted-3" style="font-size:10.5px;font-weight:700;">+@(evs.Count - 3) mais</div> }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+@* ===== Modal Novo evento ===== *@
+<div class="modal-overlay" id="evOv" style="display:none;" onmousedown="if(event.target===this)this.style.display='none'">
+    <div class="modal-card" style="width:540px;">
+        <div class="modal-head">
+            <div><h3>Novo evento</h3><p>Reunião, visita de obra ou evento pessoal</p></div>
+            <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="document.getElementById('evOv').style.display='none'">@Icons.Render("x", 18)</button>
+        </div>
+        <form asp-action="Create" method="post">
+            <div class="modal-body">
+                <div class="fld"><label>Título</label><div class="fld__box" style="height:46px;"><input name="title" required placeholder="Ex.: Reunião de coordenação; Visita de obra…" /></div></div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Categoria</label><div class="fld__box" style="height:46px;"><select name="category" style="@sel()">@foreach (var c in cats.Where(c => c.Manual)) { <option value="@c.Id">@c.Label</option> }</select></div></div>
+                    <div class="fld" style="flex:1;"><label>Data</label><div class="fld__box" style="height:46px;"><input type="date" name="eventDate" value="@today.ToString("yyyy-MM-dd")" required style="@sel()" /></div></div>
+                </div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Início (opcional)</label><div class="fld__box" style="height:46px;"><input type="time" name="startTime" style="@sel()" /></div></div>
+                    <div class="fld" style="flex:1;"><label>Fim (opcional)</label><div class="fld__box" style="height:46px;"><input type="time" name="endTime" style="@sel()" /></div></div>
+                </div>
+                <div class="fld"><label>Projeto (opcional)</label><div class="fld__box" style="height:46px;"><select name="projectId" style="@sel()"><option value="">— sem projeto —</option>@foreach (var p in projects) { <option value="@p.Id">@p.Code — @p.Name</option> }</select></div></div>
+                <div class="fld"><label>Local (opcional)</label><div class="fld__box" style="height:46px;"><input name="location" placeholder="Ex.: Obra — Rua X; Sala de reuniões" /></div></div>
+                <div class="fld"><label>Notas (opcional)</label><div class="fld__box" style="align-items:flex-start;"><textarea name="notes" rows="2" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;resize:vertical;"></textarea></div></div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" type="button" onclick="document.getElementById('evOv').style.display='none'">Cancelar</button>
+                <button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Criar evento</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function filterCal() {
+        var on = Array.from(document.querySelectorAll('.cal-cat:checked')).map(c => c.dataset.cat);
+        document.querySelectorAll('.cal-ev').forEach(e => e.style.display = on.includes(e.dataset.cat) ? '' : 'none');
+    }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.getElementById('evOv').style.display = 'none'; });
+</script>

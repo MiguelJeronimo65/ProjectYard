@@ -1,0 +1,25 @@
+@model CreateWorkspaceViewModel
+@{
+    ViewData["Title"] = "Novo workspace";
+    var plans = new[] { "Starter", "Pro", "Enterprise" };
+    string sel() => "border:none;outline:none;background:transparent;flex:1;font-size:14px;";
+}
+<div class="content">
+    <div class="page-head"><div><h1>Novo workspace</h1><p>Cria um tenant e o respetivo Owner (1.º utilizador).</p></div></div>
+    <form asp-action="Create" method="post" class="card card-pad" style="max-width:720px;">
+        <div asp-validation-summary="ModelOnly" class="login__error"></div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="fld"><label asp-for="Name"></label><div class="fld__box"><input asp-for="Name" placeholder="Atelier Sul" /></div><span asp-validation-for="Name" class="fld__msg"></span></div>
+            <div class="fld"><label asp-for="Slug"></label><div class="fld__box"><input asp-for="Slug" placeholder="atelier-sul" /></div><span asp-validation-for="Slug" class="fld__msg"></span></div>
+            <div class="fld"><label asp-for="Plan"></label><div class="fld__box"><select asp-for="Plan" style="@sel()">@foreach (var p in plans){<option value="@p" selected="@(Model.Plan == p)">@p</option>}</select></div></div>
+            <div class="fld"><label asp-for="IsTrial"></label><div class="fld__box"><select asp-for="IsTrial" style="@sel()"><option value="true">Sim — trial de 30 dias</option><option value="false">Não — ativo</option></select></div></div>
+            <div class="fld"><label asp-for="OwnerName"></label><div class="fld__box"><input asp-for="OwnerName" placeholder="Nome do Owner" /></div><span asp-validation-for="OwnerName" class="fld__msg"></span></div>
+            <div class="fld"><label asp-for="OwnerEmail"></label><div class="fld__box"><input asp-for="OwnerEmail" type="email" placeholder="owner@empresa.pt" /></div><span asp-validation-for="OwnerEmail" class="fld__msg"></span></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+            <button class="btn btn-primary" type="submit">Criar workspace</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+        </div>
+        <p class="muted" style="font-size:12.5px;margin-top:14px;">O Owner recebe uma password temporária (mostrada após a criação — o envio por email/SMS entra numa fase posterior).</p>
+    </form>
+</div>

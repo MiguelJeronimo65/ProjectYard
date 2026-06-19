@@ -1,0 +1,147 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using ProjectYard.Data.Data;
+using ProjectYard.Data.Identity;
+using ProjectYard.Web.Identity;
+using ProjectYard.Web.Tenancy;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// EF Core + Pomelo MySQL (database-first). ServerVersion fixo para evitar ligação no arranque.
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        new MySqlServerVersion(new Version(8, 0, 41))));
+
+// ASP.NET Identity (completo) sobre a tabela `users` (ApplicationUser : IdentityUser<long>).
+builder.Services
+    .AddIdentity<ApplicationUser, ApplicationRole>(options =>
+    {
+        options.User.RequireUniqueEmail = false; // email único por tenant (multi-tenant), não global
+        options.SignIn.RequireConfirmedAccount = false;
+        options.Password.RequiredLength = 8;     // alinhado com a UI das Definições (barra de força)
+    })
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+// Claims adicionais no cookie: tenant_id, user_type, is_superadmin.
+builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, AppUserClaimsPrincipalFactory>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/conta/entrar";
+    options.LogoutPath = "/conta/sair";
+    options.AccessDeniedPath = "/conta/sem-acesso";
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.SlidingExpiration = true;
+});
+
+// Por omissão, todas as páginas exigem autenticação (exceto [AllowAnonymous]).
+builder.Services.AddControllersWithViews(options =>
+{
+    var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+    options.Filters.Add(new AuthorizeFilter(policy));
+});
+
+// Autorização por papel (matriz de Definições). Superadmin (plataforma) e Owner passam sempre.
+// Aplicada às AÇÕES sensíveis; a visualização geral fica aberta a qualquer autenticado.
+builder.Services.AddAuthorization(options =>
+{
+    static bool Super(AuthorizationHandlerContext c) =>
+        c.User.HasClaim(AppUserClaimsPrincipalFactory.IsSuperadmin, "true")
+        || c.User.IsInRole("Superadmin") || c.User.IsInRole("Owner");
+    void Pol(string name, params string[] roles) =>
+        options.AddPolicy(name, p => p.RequireAssertion(c => Super(c) || roles.Any(c.User.IsInRole)));
+
+    Pol("GerirProjetos", "Administrador", "Gestor");                 // criar/editar projetos, clientes, riscos
+    Pol("GerirTarefas", "Administrador", "Gestor", "Membro");        // tarefas, calendário, horas
+    Pol("Aprovar", "Administrador", "Gestor");                       // aprovar/devolver entregáveis e aprovações
+    Pol("EnviarSms", "Administrador", "Gestor");                     // enviar SMS a clientes
+    Pol("Faturacao", "Administrador");                               // financeiro/pagamentos (Super/Owner/Admin)
+    options.AddPolicy("FaturacaoWorkspace", p => p.RequireAssertion(Super)); // subscrição: só Owner/Superadmin
+});
+
+// Sessão: usada pelo modo plataforma (superadmin "abre" um workspace e vê-o como apoio, com auditoria).
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(o =>
+{
+    o.Cookie.Name = ".ProjectYard.Session";
+    o.Cookie.HttpOnly = true;
+    o.IdleTimeout = TimeSpan.FromHours(8);
+});
+
+var app = builder.Build();
+
+// Comandos de linha (não correm no arranque normal do servidor).
+if (args.Contains("seed"))
+{
+    using var scope = app.Services.CreateScope();
+    await ProjectYard.Web.Data.DataSeeder.SeedAsync(scope.ServiceProvider);
+    return;
+}
+if (args.Contains("seed-extras"))
+{
+    using var scope = app.Services.CreateScope();
+    await ProjectYard.Web.Data.DataSeeder.SeedExtrasAsync(scope.ServiceProvider);
+    return;
+}
+if (args.Contains("verify-login"))
+{
+    using var scope = app.Services.CreateScope();
+    var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var u = await users.FindByEmailAsync("migueljeronimo@netcabo.pt");
+    if (u is null) { Console.WriteLine("verify-login: superadmin não encontrado (corre o seed)."); return; }
+    var ok = await users.CheckPasswordAsync(u, ProjectYard.Web.Data.DataSeeder.SuperadminPassword);
+    Console.WriteLine($"verify-login: utilizador={u.Email} role={u.Role} superadmin={u.IsSuperadmin}");
+    Console.WriteLine($"  password_hash (início)='{u.PasswordHash?[..Math.Min(24, u.PasswordHash.Length)]}...' (len={u.PasswordHash?.Length})");
+    Console.WriteLine($"  CheckPasswordAsync('{ProjectYard.Web.Data.DataSeeder.SuperadminPassword}') => {ok}");
+    return;
+}
+
+// Utilitário dev: `dotnet run -- purge-tenant <slug>` — apaga um tenant sem projetos + os seus utilizadores.
+if (args.Contains("purge-tenant"))
+{
+    var slug = args.SkipWhile(a => a != "purge-tenant").Skip(1).FirstOrDefault();
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.BypassTenantFilter = true;
+    var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == slug);
+    if (tenant is null) { Console.WriteLine($"purge-tenant: '{slug}' não encontrado."); return; }
+    tenant.OwnerUserId = null;
+    await db.SaveChangesAsync();
+    var users = await db.Users.Where(u => u.TenantId == tenant.Id).ToListAsync();
+    db.Users.RemoveRange(users);
+    await db.SaveChangesAsync();            // apagar utilizadores primeiro (EF não conhece a FK users->tenant)
+    db.Tenants.Remove(tenant);
+    await db.SaveChangesAsync();
+    Console.WriteLine($"purge-tenant: removido '{slug}' + {users.Count} utilizador(es).");
+    return;
+}
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseSession();
+
+// Define o tenant atual no DbContext a partir do utilizador autenticado (superadmin atravessa, com auditoria).
+app.UseMiddleware<TenantMiddleware>();
+
+app.MapStaticAssets();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}")
+    .WithStaticAssets();
+
+app.Run();

@@ -1,0 +1,92 @@
+@model LoginViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Entrar";
+}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entrar · ProjectYard</title>
+    <link rel="icon" href="~/assets/projectyard-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/projectyard.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/py-loader.css" asp-append-version="true" />
+</head>
+<body>
+@await Html.PartialAsync("_Splash")
+<div class="login">
+    <div class="login__brand">
+        <div class="login__glow"></div>
+        <div class="login__brandtop">
+            <div style="display:flex;align-items:center;gap:11px;">
+                <div style="width:38px;height:38px;border-radius:11px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);">
+                    <img src="~/assets/projectyard-icon.png" alt="" style="width:100%;height:100%;object-fit:cover;" />
+                </div>
+                <span class="display" style="font-weight:700;font-size:18px;letter-spacing:-0.01em;">ProjectYard</span>
+            </div>
+            <span style="font-size:12.5px;font-weight:600;opacity:.7;">projectyard.app</span>
+        </div>
+        <div class="login__brandmid">
+            <div class="login__logocard">
+                <img src="~/assets/projectyard-logo.png" alt="ProjectYard — Plan. Build. Deliver." />
+            </div>
+            <p class="login__lead">A plataforma de controlo de entrega para gabinetes de arquitetura, engenharia e consultoras.</p>
+            <div class="login__stats">
+                <div class="login__stat"><div class="display num">24</div><div class="login__statlabel">Projetos ativos</div></div>
+                <div class="login__stat"><div class="display num">1.2k</div><div class="login__statlabel">Entregáveis controlados</div></div>
+                <div class="login__stat"><div class="display num">€840k</div><div class="login__statlabel">Faturado este ano</div></div>
+            </div>
+        </div>
+        <div class="login__brandfoot">
+            <span>@Icons.Render("shield", 15) Multi-tenant seguro</span>
+            <span>@Icons.Render("spark", 15) Trial de 30 dias</span>
+            <span>@Icons.Render("check", 15) RGPD</span>
+        </div>
+    </div>
+
+    <div class="login__auth">
+        <div class="login__form rise">
+            <h1 class="display login__title">Bem-vindo de volta</h1>
+            <p class="muted login__sub">Inicia sessão para continuar a gerir os teus projetos.</p>
+
+            <form asp-controller="Account" asp-action="Login" method="post">
+                <input type="hidden" asp-for="ReturnUrl" />
+                <div asp-validation-summary="ModelOnly" class="login__error"></div>
+
+                <div class="fld">
+                    <label asp-for="Email"></label>
+                    <div class="fld__box">
+                        @Icons.Render("mail", 18)
+                        <input asp-for="Email" type="email" autocomplete="username" placeholder="nome@empresa.pt" autofocus />
+                    </div>
+                    <span asp-validation-for="Email" class="fld__msg"></span>
+                </div>
+
+                <div class="fld">
+                    <div class="fld__top"><label asp-for="Password"></label></div>
+                    <div class="fld__box">
+                        @Icons.Render("lock", 18)
+                        <input asp-for="Password" type="password" autocomplete="current-password" placeholder="••••••••" />
+                    </div>
+                    <span asp-validation-for="Password" class="fld__msg"></span>
+                </div>
+
+                <label class="login__remember">
+                    <input asp-for="RememberMe" /> Manter sessão iniciada
+                </label>
+
+                <button type="submit" class="btn btn-primary login__submit">Iniciar sessão @Icons.Render("arrowRight", 17)</button>
+            </form>
+
+            <div class="login__sms">@Icons.Render("shield", 16) Ligação segura · os teus dados ficam privados</div>
+            <div style="text-align:center;margin-top:14px;font-size:11px;font-weight:600;color:var(--text-3);opacity:.7;">ProjectYard @Ui.AppVersion</div>
+        </div>
+    </div>
+</div>
+@await Html.PartialAsync("_Loader")
+</body>
+</html>

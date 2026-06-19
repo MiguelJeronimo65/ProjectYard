@@ -1,0 +1,280 @@
+@{
+    ViewData["Title"] = "Chat";
+    var threads = (List<ChatThreadVm>)ViewBag.Threads;
+    var selected = (ChatThreadVm?)ViewBag.Selected;
+    var msgs = (List<ChatMessage>)ViewBag.Messages;
+    var reactions = (Dictionary<long, List<ChatReactionVm>>)ViewBag.Reactions ?? new();
+    var pinned = (List<ChatMessage>)ViewBag.PinnedMessages ?? new();
+    long? firstUnreadId = ViewBag.FirstUnreadId;
+    DateTime? readByOthersAt = ViewBag.ReadByOthersAt;
+    var emojis = new[] { "👍", "❤️", "✅", "🎉", "👀", "🙌" };
+    long me = ViewBag.Me;
+    string Hm(DateTime d) => d.Date == DateTime.Today ? d.ToString("HH:mm") : d.Date == DateTime.Today.AddDays(-1) ? "Ontem " + d.ToString("HH:mm") : d.ToString("d MMM HH:mm", System.Globalization.CultureInfo.GetCultureInfo("pt-PT"));
+    string ChanColor(ChatChannel c) => Components.Color(c.Name ?? "d" + c.Id);
+    var channels = threads.Where(t => t.Channel.Type == "channel").ToList();
+    var directs = threads.Where(t => t.Channel.Type == "direct").ToList();
+}
+<div class="content">
+    <div class="page-head">
+        <div><h1>Chat</h1><p>Canais por projeto e mensagens diretas · isolado por workspace</p></div>
+    </div>
+
+    <div class="card" style="overflow:hidden;display:grid;grid-template-columns:320px 1fr;height:620px;">
+        @* ===== Lista ===== *@
+        <div style="border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;">
+            <div style="padding:14px;border-bottom:1px solid var(--border);">
+                <div class="search" style="width:100%;">@Icons.Render("search", 17)<input placeholder="Procurar conversa…" id="chatSearch" oninput="filterThreads(this.value)" /></div>
+            </div>
+            <div style="overflow-y:auto;flex:1;">
+                <div class="nav-label" style="padding:12px 16px 5px;">Canais</div>
+                @foreach (var t in channels)
+                {
+                    var on = selected?.Channel.Id == t.Channel.Id;
+                    <a class="py-thread" data-name="@t.DisplayName" href="@Url.Action("Index", new { c = t.Channel.Id })"
+                       style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-align:left;color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
+                        <div style="width:42px;height:42px;border-radius:12px;background:@(ChanColor(t.Channel))22;color:@ChanColor(t.Channel);display:grid;place-items:center;font-weight:800;font-size:19px;flex-shrink:0;font-family:var(--font-display);">#</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:13.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Channel.Name</span>
+                                @if (t.Unread > 0) { <span class="badge-count" style="position:static;">@t.Unread</span> }
+                                <span class="muted-3" style="font-size:11px;font-weight:600;">@(t.LastAt is { } la ? Hm(la) : "")</span>
+                            </div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Preview</div>
+                            <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:2px;">@(t.Channel.Project?.Name ?? "")</div>
+                        </div>
+                    </a>
+                }
+                <div class="nav-label" style="padding:12px 16px 5px;">Mensagens diretas</div>
+                @foreach (var t in directs)
+                {
+                    var on = selected?.Channel.Id == t.Channel.Id;
+                    <a class="py-thread" data-name="@t.DisplayName" href="@Url.Action("Index", new { c = t.Channel.Id })"
+                       style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-align:left;color:inherit;background:@(on ? "var(--accent-soft)" : "transparent");">
+                        <div style="position:relative;">@Components.Avatar(t.OtherNames.FirstOrDefault(), 42)<span style="position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:99px;background:var(--success);border:2px solid var(--surface);"></span></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:13.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.DisplayName</span>
+                                @if (t.Unread > 0) { <span class="badge-count" style="position:static;">@t.Unread</span> }
+                                <span class="muted-3" style="font-size:11px;font-weight:600;">@(t.LastAt is { } la2 ? Hm(la2) : "")</span>
+                            </div>
+                            <div class="muted-3" style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Preview</div>
+                        </div>
+                    </a>
+                }
+            </div>
+        </div>
+
+        @* ===== Conversa ===== *@
+        @if (selected != null)
+        {
+            <div style="display:flex;flex-direction:column;min-height:0;background:var(--surface-2);">
+                <div style="padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);">
+                    @if (selected.Channel.Type == "channel")
+                    {
+                        <div style="width:38px;height:38px;border-radius:11px;background:@(ChanColor(selected.Channel))22;color:@ChanColor(selected.Channel);display:grid;place-items:center;font-weight:800;font-size:17px;font-family:var(--font-display);">#</div>
+                    }
+                    else
+                    {
+                        @Components.Avatar(selected.OtherNames.FirstOrDefault(), 38)
+                    }
+                    <div style="flex:1;">
+                        <div style="font-weight:700;font-size:14.5px;">@selected.DisplayName</div>
+                        <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(selected.Channel.Type == "channel" ? $"{selected.AllNames.Count} participantes · {selected.Channel.Project?.Code ?? "geral"}" : "online")</div>
+                    </div>
+                    @Components.AvStack(selected.AllNames, 4, 26)
+                </div>
+
+                @if (pinned.Count > 0)
+                {
+                    <details class="chat-pinbar">
+                        <summary>@Icons.Render("pin", 13) <b>@pinned.Count</b> @(pinned.Count == 1 ? "mensagem fixada" : "mensagens fixadas") @Icons.Render("chevD", 14)</summary>
+                        <div class="chat-pinbar__list">
+                            @foreach (var p in pinned)
+                            {
+                                <div class="chat-pinbar__item">
+                                    <span class="muted-3" style="font-weight:700;font-size:11.5px;">@(p.Sender?.Name.Split(' ')[0])</span>
+                                    <span style="font-size:12.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@p.Body</span>
+                                    <form asp-action="TogglePin" method="post" style="margin:0;" data-no-loader><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@p.Id" /><button class="chat-pin-x" type="submit" title="Desafixar">@Icons.Render("x", 13)</button></form>
+                                </div>
+                            }
+                        </div>
+                    </details>
+                }
+
+                <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:4px;" id="chatScroll">
+                    @foreach (var m in msgs)
+                    {
+                        var mine = m.SenderId == me;
+                        var deleted = m.DeletedAt != null;
+                        var rx = reactions.GetValueOrDefault(m.Id) ?? new();
+                        if (m.Id == firstUnreadId)
+                        {
+                            <div class="chat-unread-sep"><span></span><b>Novas mensagens</b><span></span></div>
+                        }
+                        <div class="chat-msg" style="display:flex;justify-content:@(mine ? "flex-end" : "flex-start");gap:9px;align-items:flex-end;margin-top:6px;">
+                            @if (!mine) { @Components.Avatar(m.Sender?.Name, 28) }
+                            @if (mine && !deleted)
+                            {
+                                <div class="chat-acts" style="@(mine ? "" : "order:2;")">
+                                    <button type="button" class="chat-acts-btn" title="Reagir" onclick="pyPop(this,'react')">@Icons.Render("spark", 14)</button>
+                                    <button type="button" class="chat-acts-btn" title="Opções" onclick="pyPop(this,'menu')">@Icons.Render("dots", 15)</button>
+                                    <div class="chat-pop chat-pop--react" data-side="@(mine ? "right" : "left")">
+                                        @foreach (var e in emojis)
+                                        {
+                                            <form asp-action="React" method="post" style="margin:0;" data-no-loader><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><input type="hidden" name="emoji" value="@e" /><button type="submit" class="chat-emoji-btn">@e</button></form>
+                                        }
+                                    </div>
+                                    <div class="chat-pop chat-pop--menu" data-side="@(mine ? "right" : "left")">
+                                        <form asp-action="TogglePin" method="post" style="margin:0;" data-no-loader><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><button type="submit" class="chat-menu-item">@Icons.Render("pin", 15) @(m.Pinned ? "Desafixar" : "Fixar")</button></form>
+                                        <button type="button" class="chat-menu-item" onclick="pyEdit(@m.Id)">@Icons.Render("fileText", 15) Editar</button>
+                                        <form asp-action="DeleteMessage" method="post" style="margin:0;" data-no-loader onsubmit="return confirm('Eliminar esta mensagem?')"><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><button type="submit" class="chat-menu-item danger">@Icons.Render("x", 15) Eliminar</button></form>
+                                    </div>
+                                </div>
+                            }
+                            <div style="max-width:74%;">
+                                @if (!mine && selected.Channel.Type == "channel")
+                                {
+                                    <div class="muted-3" style="font-size:11.5px;font-weight:700;margin-bottom:3px;padding-inline:4px;">@m.Sender?.Name.Split(' ')[0]</div>
+                                }
+                                @if (deleted)
+                                {
+                                    <div style="padding:9px 14px;border-radius:@(mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px");border:1px dashed var(--border-2);color:var(--text-3);font-size:13px;font-style:italic;display:inline-flex;align-items:center;gap:7px;">@Icons.Render("x", 13) Mensagem eliminada</div>
+                                }
+                                else
+                                {
+                                    <div id="bubble-@m.Id" style="position:relative;padding:11px 15px;border-radius:@(mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px");background:@(mine ? "var(--grad)" : "var(--surface)");color:@(mine ? "#fff" : "var(--text)");border:@(mine ? "none" : "1px solid var(--border)");font-size:13.5px;line-height:1.5;box-shadow:var(--sh-sm);">
+                                        @if (m.Pinned)
+                                        {
+                                            <span title="Fixada" style="position:absolute;top:-7px;@(mine ? "left:-7px;" : "right:-7px;")width:20px;height:20px;border-radius:99px;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:var(--sh-sm);">@Icons.Render("pin", 11)</span>
+                                        }
+                                        @m.Body
+                                    </div>
+                                    if (mine)
+                                    {
+                                        <form id="edit-@m.Id" asp-action="EditMessage" method="post" style="display:none;flex-direction:column;gap:7px;" data-no-loader>
+                                            <input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" />
+                                            <div class="fld__box" style="padding:0 13px;background:var(--surface);"><input name="body" value="@m.Body" onkeydown="if(event.key==='Escape')pyEdit(@m.Id,true)" style="flex:1;border:none;outline:none;background:transparent;padding:11px 0;font-size:13.5px;color:var(--text);" /></div>
+                                            <div style="display:flex;gap:7px;justify-content:flex-end;"><button type="button" class="btn btn-ghost btn-sm" onclick="pyEdit(@m.Id,true)">Cancelar</button><button type="submit" class="btn btn-primary btn-sm">@Icons.Render("check", 14) Guardar</button></div>
+                                        </form>
+                                    }
+                                }
+                                @if (!deleted && rx.Count > 0)
+                                {
+                                    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;justify-content:@(mine ? "flex-end" : "flex-start");">
+                                        @foreach (var r in rx)
+                                        {
+                                            <form asp-action="React" method="post" style="margin:0;" data-no-loader>
+                                                <input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><input type="hidden" name="emoji" value="@r.Emoji" />
+                                                <button class="chat-react-chip" type="submit" title="@string.Join(", ", r.Names)" style="border:1px solid @(r.Mine ? "var(--primary)" : "var(--border)");background:@(r.Mine ? "var(--primary-soft)" : "var(--surface)");"><span style="font-size:13px;">@r.Emoji</span>@r.Count</button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                                <div class="muted-3" style="font-size:11px;font-weight:600;margin-top:4px;padding-inline:4px;text-align:@(mine ? "right" : "left");display:flex;gap:5px;align-items:center;justify-content:@(mine ? "flex-end" : "flex-start");">
+                                    @Hm(m.CreatedAt)@if (m.EditedAt != null && !deleted) { <span>· editado</span> }
+                                    @if (mine && !deleted)
+                                    {
+                                        if (readByOthersAt is { } ra && ra >= m.CreatedAt)
+                                        {
+                                            <span title="Lido" style="color:var(--info);display:inline-grid;">@Icons.Render("checks", 13)</span>
+                                        }
+                                        else
+                                        {
+                                            <span title="Enviado" style="color:var(--text-3);display:inline-grid;">@Icons.Render("check", 12)</span>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                            @if (!mine && !deleted)
+                            {
+                                <div class="chat-acts">
+                                    <button type="button" class="chat-acts-btn" title="Reagir" onclick="pyPop(this,'react')">@Icons.Render("spark", 14)</button>
+                                    <button type="button" class="chat-acts-btn" title="Opções" onclick="pyPop(this,'menu')">@Icons.Render("dots", 15)</button>
+                                    <div class="chat-pop chat-pop--react" data-side="left">
+                                        @foreach (var e in emojis)
+                                        {
+                                            <form asp-action="React" method="post" style="margin:0;" data-no-loader><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><input type="hidden" name="emoji" value="@e" /><button type="submit" class="chat-emoji-btn">@e</button></form>
+                                        }
+                                    </div>
+                                    <div class="chat-pop chat-pop--menu" data-side="left">
+                                        <form asp-action="TogglePin" method="post" style="margin:0;" data-no-loader><input type="hidden" name="channelId" value="@selected.Channel.Id" /><input type="hidden" name="messageId" value="@m.Id" /><button type="submit" class="chat-menu-item">@Icons.Render("pin", 15) @(m.Pinned ? "Desafixar" : "Fixar")</button></form>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div style="border-top:1px solid var(--border);background:var(--surface);padding:14px;">
+                    <form asp-action="Send" method="post" style="display:flex;gap:10px;align-items:flex-end;margin:0;">
+                        <input type="hidden" name="channelId" value="@selected.Channel.Id" />
+                        <div class="fld__box" style="flex:1;align-items:flex-end;padding:0 14px;">
+                            <textarea name="body" rows="2" required placeholder="Mensagem para @selected.DisplayName…"
+                                      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit();}"
+                                      style="flex:1;border:none;outline:none;background:transparent;resize:none;padding:12px 0;font-size:14px;font-family:inherit;color:var(--text);"></textarea>
+                        </div>
+                        <button class="btn btn-primary" type="submit" style="height:48px;padding:0 18px;">@Icons.Render("plus", 17) Enviar</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty" style="display:grid;place-items:center;">@Icons.Render("message", 34)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem conversas</div></div>
+        }
+    </div>
+</div>
+<style>
+    .chat-msg .chat-acts { position: relative; align-self: center; display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
+    .chat-msg:hover .chat-acts, .chat-acts.open { opacity: 1; }
+    .chat-acts-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-3); display: grid; place-items: center; cursor: pointer; }
+    .chat-acts-btn:hover { color: var(--text); border-color: var(--border-2); }
+    .chat-pop { position: absolute; bottom: 100%; margin-bottom: 6px; z-index: 31; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--sh-md); display: none; }
+    .chat-pop[data-side="right"] { right: 0; } .chat-pop[data-side="left"] { left: 0; }
+    .chat-pop.open { display: flex; }
+    .chat-pop--react { border-radius: 99px; padding: 4px 7px; gap: 2px; }
+    .chat-pop--menu { border-radius: var(--r-sm); padding: 6px; width: 156px; flex-direction: column; }
+    .chat-emoji-btn { border: none; background: transparent; cursor: pointer; font-size: 17px; line-height: 1; padding: 5px 6px; border-radius: 8px; }
+    .chat-emoji-btn:hover { background: var(--surface-2); transform: scale(1.15); }
+    .chat-menu-item { display: flex; align-items: center; gap: 9px; width: 100%; border: none; background: transparent; padding: 8px 10px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; font-family: inherit; text-align: left; }
+    .chat-menu-item:hover { background: var(--surface-2); color: var(--text); }
+    .chat-menu-item.danger { color: var(--danger); }
+    .chat-react-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 700; color: var(--text-2); cursor: pointer; }
+    .chat-unread-sep { display: flex; align-items: center; gap: 10px; margin: 12px 2px 2px; }
+    .chat-unread-sep span { flex: 1; height: 1px; background: var(--danger); opacity: .35; }
+    .chat-unread-sep b { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--danger); }
+    .chat-pinbar { border-bottom: 1px solid var(--border); background: var(--surface); }
+    .chat-pinbar > summary { list-style: none; cursor: pointer; padding: 9px 18px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--accent-700); }
+    .chat-pinbar > summary::-webkit-details-marker { display: none; }
+    .chat-pinbar__list { padding: 4px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
+    .chat-pinbar__item { display: flex; align-items: center; gap: 9px; padding: 7px 11px; background: var(--surface-2); border-radius: var(--r-sm); }
+    .chat-pin-x { border: none; background: transparent; color: var(--text-3); cursor: pointer; display: grid; place-items: center; }
+</style>
+<script>
+    var sc = document.getElementById('chatScroll'); if (sc) sc.scrollTop = sc.scrollHeight;
+    function filterThreads(q) {
+        q = q.toLowerCase();
+        document.querySelectorAll('.py-thread').forEach(t => t.style.display = t.dataset.name.toLowerCase().includes(q) ? '' : 'none');
+    }
+    function pyClosePops() {
+        document.querySelectorAll('.chat-pop.open').forEach(p => p.classList.remove('open'));
+        document.querySelectorAll('.chat-acts.open').forEach(a => a.classList.remove('open'));
+    }
+    function pyPop(btn, kind) {
+        var acts = btn.closest('.chat-acts');
+        var pop = acts.querySelector('.chat-pop--' + kind);
+        var wasOpen = pop.classList.contains('open');
+        pyClosePops();
+        if (!wasOpen) { pop.classList.add('open'); acts.classList.add('open'); }
+    }
+    function pyEdit(id, cancel) {
+        var bubble = document.getElementById('bubble-' + id), form = document.getElementById('edit-' + id);
+        if (!bubble || !form) return;
+        pyClosePops();
+        if (cancel) { form.style.display = 'none'; bubble.style.display = ''; }
+        else { bubble.style.display = 'none'; form.style.display = 'flex'; var inp = form.querySelector('input[name=body]'); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.chat-acts')) pyClosePops();
+    });
+</script>

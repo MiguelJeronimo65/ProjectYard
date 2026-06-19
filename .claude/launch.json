@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "projectyard",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set ASPNETCORE_ENVIRONMENT=Development&& dotnet run --project src/ProjectYard.Web --no-launch-profile --urls http://localhost:5055"],
+      "port": 5055
+    }
+  ]
+}

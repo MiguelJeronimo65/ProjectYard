@@ -1,0 +1,30 @@
+@model Risk
+@{
+    var editing = Model.Id != 0;
+    ViewData["Title"] = editing ? "Editar risco" : "Novo risco";
+    var projects = (List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Projects;
+    var users = (List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Users;
+    var statuses = new[] { "Aberto", "Monitorizado", "Mitigado", "Fechado" };
+    string sel(string field) => "border:none;outline:none;background:transparent;flex:1;font-size:14px;";
+}
+<div class="content">
+    <div class="page-head"><div><h1>@(editing ? "Editar risco" : "Novo risco")</h1></div></div>
+    <form asp-action="@(editing ? "Edit" : "Create")" asp-route-id="@(editing ? Model.Id : (long?)null)" method="post" class="card card-pad" style="max-width:720px;">
+        <div asp-validation-summary="ModelOnly" class="login__error"></div>
+        @if (editing) { <input type="hidden" asp-for="Id" /> }
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="fld" style="grid-column:1/-1;"><label asp-for="Title">Título</label><div class="fld__box"><input asp-for="Title" placeholder="Descrição do risco" /></div><span asp-validation-for="Title" class="fld__msg"></span></div>
+            <div class="fld"><label asp-for="ProjectId">Projeto</label><div class="fld__box"><select asp-for="ProjectId" asp-items="projects" style="@sel("p")"></select></div></div>
+            <div class="fld"><label asp-for="Category">Categoria</label><div class="fld__box"><input asp-for="Category" placeholder="Licenciamento, Técnico…" /></div></div>
+            <div class="fld"><label asp-for="Probability">Probabilidade (1–5)</label><div class="fld__box"><select asp-for="Probability" style="@sel("x")">@for (int i = 1; i <= 5; i++){<option value="@i" selected="@(Model.Probability == i)">@i</option>}</select></div></div>
+            <div class="fld"><label asp-for="Impact">Impacto (1–5)</label><div class="fld__box"><select asp-for="Impact" style="@sel("x")">@for (int i = 1; i <= 5; i++){<option value="@i" selected="@(Model.Impact == i)">@i</option>}</select></div></div>
+            <div class="fld"><label asp-for="OwnerId">Responsável</label><div class="fld__box"><select asp-for="OwnerId" asp-items="users" style="@sel("u")"><option value="">— sem responsável —</option></select></div></div>
+            <div class="fld"><label asp-for="Status">Estado</label><div class="fld__box"><select asp-for="Status" style="@sel("s")">@foreach (var s in statuses){<option value="@s" selected="@(Model.Status == s)">@s</option>}</select></div></div>
+            <div class="fld" style="grid-column:1/-1;"><label asp-for="Mitigation">Mitigação</label><div class="fld__box" style="align-items:flex-start;"><textarea asp-for="Mitigation" rows="3" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;resize:vertical;"></textarea></div></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+        </div>
+    </form>
+</div>

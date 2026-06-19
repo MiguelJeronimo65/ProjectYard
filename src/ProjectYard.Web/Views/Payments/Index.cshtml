@@ -1,0 +1,183 @@
+@{
+    ViewData["Title"] = "Financeiro";
+    var invoices = (List<Invoice>)ViewBag.Invoices;
+    int allCount = ViewBag.AllCount;
+    string estado = ViewBag.Estado;
+    string tab = ViewBag.Tab;
+    decimal faturado = ViewBag.Faturado, recebido = ViewBag.Recebido, pendente = ViewBag.Pendente, vencido = ViewBag.Vencido;
+    int abertas = ViewBag.Abertas;
+    var vencidas = (List<Invoice>)ViewBag.Vencidas;
+    var revenue = (List<(string M, double V)>)ViewBag.Revenue;
+    var msGroups = (List<IGrouping<Project?, PaymentMilestone>>)ViewBag.MilestonesByProject;
+    var projects = (IEnumerable<dynamic>)ViewBag.Projects;
+    int Pct(decimal n) => faturado <= 0 ? 0 : (int)Math.Round(n / faturado * 100);
+    int pagoPct = Pct(recebido), pendentePct = Pct(pendente), vencidoPct = Pct(vencido);
+    var estados = new[] { "Todos", "Pago", "Pendente", "Vencido" };
+}
+<div class="content">
+    <div class="page-head">
+        <div><h1>Financeiro</h1><p>Faturação, milestones de pagamento e controlo de custos</p></div>
+        <div class="page-head__actions">
+            <button class="btn btn-ghost" type="button">@Icons.Render("download", 16) Exportar</button>
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('nfOv').style.display='grid'">@Icons.Render("plus", 16) Nova fatura</button>
+        </div>
+    </div>
+
+    @* KPIs *@
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--accent-soft);color:var(--accent-700);">@Icons.Render("euro", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(faturado)</div><div class="stat__label">Faturado (ano)</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@allCount faturas emitidas</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--success-soft);color:var(--success);">@Icons.Render("check", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(recebido)</div><div class="stat__label">Recebido</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@pagoPct% da faturação</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--warning-soft);color:var(--warning);">@Icons.Render("clock", 23)</div></div>
+            <div><div class="stat__val">@Ui.Kk(pendente)</div><div class="stat__label">Pendente</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@abertas faturas em aberto</div>
+        </div>
+        <div class="card card-pad stat rise">
+            <div class="stat__top"><div class="stat__icon" style="background:var(--danger-soft);color:var(--danger);">@Icons.Render("alert", 23)</div><span class="trend down"><span style="display:inline-flex;transform:rotate(180deg);">@Icons.Render("arrowUp", 13)</span> @(vencidas.Count > 0 ? vencidas.Count + " fatura" + (vencidas.Count > 1 ? "s" : "") : "Sem vencidas")</span></div>
+            <div><div class="stat__val">@Ui.Kk(vencido)</div><div class="stat__label">Vencido</div></div>
+            <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:-4px;">@(vencidas.Count > 0 ? vencidas[0].Project?.Name : "Tudo em dia")</div>
+        </div>
+    </div>
+
+    @* Cash-flow + Donut *@
+    <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start;margin-bottom:20px;">
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Cash-flow mensal</h3><span class="sub">Faturado por mês · 2026</span></div></div>
+            @Components.BarChart(revenue, 170)
+        </div>
+        <div class="card card-pad">
+            <div class="card-h"><div><h3>Estado da faturação</h3></div></div>
+            <div style="display:flex;align-items:center;gap:22px;">
+                @Components.Donut(new[] { ((double)pagoPct, "var(--success)"), ((double)pendentePct, "var(--warning)"), ((double)vencidoPct, "var(--danger)") }, 132)
+                <div style="display:flex;flex-direction:column;gap:14px;">
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--success);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:70px;">Pago</span><span class="num" style="font-weight:700;font-size:15px;">@pagoPct%</span></div>
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--warning);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:70px;">Pendente</span><span class="num" style="font-weight:700;font-size:15px;">@pendentePct%</span></div>
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="width:11px;height:11px;border-radius:4px;background:var(--danger);"></span><span style="font-weight:600;font-size:13px;color:var(--text-2);min-width:70px;">Vencido</span><span class="num" style="font-weight:700;font-size:15px;">@vencidoPct%</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Tabs *@
+    <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;">
+        <a href="@Url.Action("Index")" style="border:none;background:transparent;padding:12px 16px;font-weight:700;font-size:14px;color:@(tab == "faturas" ? "var(--primary-700)" : "var(--text-2)");border-bottom:2px solid @(tab == "faturas" ? "var(--accent)" : "transparent");margin-bottom:-1px;">Faturas</a>
+        <a href="@Url.Action("Index", new { tab = "plano" })" style="border:none;background:transparent;padding:12px 16px;font-weight:700;font-size:14px;color:@(tab == "plano" ? "var(--primary-700)" : "var(--text-2)");border-bottom:2px solid @(tab == "plano" ? "var(--accent)" : "transparent");margin-bottom:-1px;">Plano de pagamentos</a>
+    </div>
+
+    @if (tab == "faturas")
+    {
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+            @foreach (var s in estados)
+            {
+                <a class="chip @(estado == s ? "active" : "")" href="@Url.Action("Index", new { estado = s == "Todos" ? null : s })">@s</a>
+            }
+            <span class="muted-3" style="margin-left:auto;font-size:12.5px;font-weight:600;">@invoices.Count de @allCount faturas</span>
+        </div>
+        <div class="card">
+            @if (invoices.Count == 0)
+            {
+                <div class="empty" style="padding:44px 20px;">@Icons.Render("card", 30)<div style="margin-top:10px;font-weight:700;font-size:14.5px;color:var(--text-2);">Sem faturas</div><div style="margin-top:4px;">Nenhuma fatura no estado “@estado”.</div></div>
+            }
+            else
+            {
+                <table class="tbl">
+                    <thead><tr><th>Fatura</th><th>Projeto</th><th>Milestone</th><th>Valor</th><th>Emitida</th><th>Vencimento</th><th>Estado</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var inv in invoices)
+                    {
+                        <tr>
+                            <td><span class="num" style="font-weight:700;">@inv.Number</span></td>
+                            <td class="muted" style="font-weight:600;">@(inv.Project?.Name ?? "—")</td>
+                            <td class="muted" style="font-weight:600;">@(inv.MilestoneTxt ?? "—")</td>
+                            <td class="num" style="font-weight:700;">@Ui.Eur(inv.Amount)</td>
+                            <td class="muted" style="font-weight:600;">@Ui.Date(inv.IssuedAt)</td>
+                            <td class="@(inv.Status == "Vencido" ? "" : "muted")" style="font-weight:700;@(inv.Status == "Vencido" ? "color:var(--danger);" : "")">@Ui.Date(inv.DueAt)</td>
+                            <td><span class="badge @Ui.InvoiceStatus(inv.Status)"><span class="bdot"></span>@inv.Status</span></td>
+                            <td style="text-align:right;">
+                                @if (inv.Status != "Pago")
+                                {
+                                    <form asp-action="Pay" asp-route-id="@inv.Id" method="post" style="display:inline;">
+                                        <button class="btn btn-soft btn-sm" type="submit" style="padding:6px 11px;">Registar pgto.</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="grid" style="gap:20px;">
+            @foreach (var g in msGroups)
+            {
+                var proj = g.Key;
+                var faturadoMs = g.Where(m => m.Status is "Faturado" or "Pago").Sum(m => m.Amount);
+                var porFaturar = g.Sum(m => m.Amount) - faturadoMs;
+                <div class="card card-pad">
+                    <div class="card-h"><div><h3>Milestones de pagamento</h3><span class="sub">@(proj?.Name ?? "—") · contrato @Ui.Eur(proj?.Fees)</span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        @foreach (var m in g)
+                        {
+                            <div style="display:flex;align-items:center;gap:16px;padding:14px;border:1px solid var(--border);border-radius:var(--r-sm);">
+                                <div style="width:44px;height:44px;border-radius:11px;flex-shrink:0;display:grid;place-items:center;background:@(m.Status == "Faturado" || m.Status == "Pago" ? "var(--success-soft)" : m.Status == "Atingido" ? "var(--info-soft)" : "var(--surface-3)");color:@(m.Status == "Faturado" || m.Status == "Pago" ? "var(--success)" : m.Status == "Atingido" ? "var(--info)" : "var(--text-3)");">
+                                    @Icons.Render(m.Status is "Faturado" or "Pago" ? "check" : "target", 21)
+                                </div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:700;font-size:14.5px;">@m.Name</div>
+                                    <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(m.TriggerType ?? "—") · @(m.Pct?.ToString("0.#") ?? "—")% do contrato</div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div class="num" style="font-weight:700;font-size:16px;">@Ui.Eur(m.Amount)</div>
+                                    <span class="badge @Ui.MilestoneStatus(m.Status)">@m.Status</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:28px;margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+                        <div><div class="muted-3" style="font-size:12.5px;font-weight:700;text-transform:uppercase;">Faturado</div><div class="num" style="font-weight:700;font-size:18px;color:var(--success);">@Ui.Eur(faturadoMs)</div></div>
+                        <div><div class="muted-3" style="font-size:12.5px;font-weight:700;text-transform:uppercase;">Por faturar</div><div class="num" style="font-weight:700;font-size:18px;">@Ui.Eur(porFaturar)</div></div>
+                    </div>
+                </div>
+            }
+            @if (msGroups.Count == 0)
+            {
+                <div class="card"><div class="empty" style="padding:44px 20px;">@Icons.Render("card", 30)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Sem milestones</div></div></div>
+            }
+        </div>
+    }
+</div>
+
+@* ===== Modal Nova fatura ===== *@
+<div class="modal-overlay" id="nfOv" style="display:none;" onmousedown="if(event.target===this)this.style.display='none'">
+    <div class="modal-card" style="width:540px;">
+        <div class="modal-head">
+            <div><h3>Nova fatura</h3><p>Emite uma fatura associada a um projeto e milestone.</p></div>
+            <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="document.getElementById('nfOv').style.display='none'">@Icons.Render("x", 18)</button>
+        </div>
+        <form asp-action="CreateInvoice" method="post">
+            <div class="modal-body">
+                <div class="fld"><label>Projeto</label><div class="fld__box" style="height:46px;"><select name="projectId" required style="flex:1;border:none;outline:none;background:transparent;font-size:14px;font-weight:600;color:var(--text);">@foreach (var p in projects) { <option value="@p.Id">@p.Name</option> }</select></div></div>
+                <div class="fld"><label>Milestone / descrição</label><div class="fld__box" style="height:46px;"><input name="milestone" placeholder="Ex.: Projeto de Execução 50%" /></div></div>
+                <div style="display:flex;gap:14px;">
+                    <div class="fld" style="flex:1;"><label>Valor (€)</label><div class="fld__box" style="height:46px;"><input name="amount" type="number" step="0.01" min="0" placeholder="0" required /></div></div>
+                    <div class="fld" style="flex:1;"><label>Vencimento</label><div class="fld__box" style="height:46px;"><input name="due" type="date" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;" /></div></div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" type="button" onclick="document.getElementById('nfOv').style.display='none'">Cancelar</button>
+                <button class="btn btn-primary" type="submit">@Icons.Render("check", 15) Emitir fatura</button>
+            </div>
+        </form>
+    </div>
+</div>

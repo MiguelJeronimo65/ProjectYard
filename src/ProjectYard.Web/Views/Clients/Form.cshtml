@@ -1,0 +1,28 @@
+@model Client
+@{
+    var editing = Model.Id != 0;
+    ViewData["Title"] = editing ? "Editar cliente" : "Novo cliente";
+    var statuses = new[] { "Lead", "Ativo", "Em risco", "Concluído" };
+}
+<div class="content">
+    <div class="page-head"><div><h1>@(editing ? "Editar cliente" : "Novo cliente")</h1><p>Dados do cliente do teu workspace.</p></div></div>
+    <form asp-action="@(editing ? "Edit" : "Create")" asp-route-id="@(editing ? Model.Id : (long?)null)" method="post" class="card card-pad" style="max-width:720px;">
+        <div asp-validation-summary="ModelOnly" class="login__error"></div>
+        @if (editing) { <input type="hidden" asp-for="Id" /> }
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="fld" style="grid-column:1/-1;"><label asp-for="Company">Empresa</label><div class="fld__box"><input asp-for="Company" placeholder="Nome da empresa" /></div><span asp-validation-for="Company" class="fld__msg"></span></div>
+            <div class="fld"><label asp-for="Nif">NIF</label><div class="fld__box"><input asp-for="Nif" /></div></div>
+            <div class="fld"><label asp-for="City">Cidade</label><div class="fld__box"><input asp-for="City" /></div></div>
+            <div class="fld"><label asp-for="Contact">Pessoa de contacto</label><div class="fld__box"><input asp-for="Contact" /></div></div>
+            <div class="fld"><label asp-for="ContactRole">Cargo do contacto</label><div class="fld__box"><input asp-for="ContactRole" /></div></div>
+            <div class="fld"><label asp-for="Email">Email</label><div class="fld__box"><input asp-for="Email" type="email" /></div></div>
+            <div class="fld"><label asp-for="Phone">Telefone</label><div class="fld__box"><input asp-for="Phone" /></div></div>
+            <div class="fld"><label asp-for="Status">Estado</label><div class="fld__box"><select asp-for="Status" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;">@foreach (var s in statuses){<option value="@s" selected="@(Model.Status == s)">@s</option>}</select></div></div>
+            <div class="fld"><label asp-for="Stage">Fase do funil</label><div class="fld__box"><select asp-for="Stage" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;">@foreach (var st in ProjectYard.Web.Controllers.ClientsController.Stages){<option value="@st.Id" selected="@(Model.Stage == st.Id)">@st.Label</option>}</select></div></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+        </div>
+    </form>
+</div>
