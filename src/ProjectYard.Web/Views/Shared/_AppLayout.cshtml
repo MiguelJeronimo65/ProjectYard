@@ -170,6 +170,7 @@
                 </div>
             }
             <a class="nav-item @(ctrl == "Settings" ? "active" : "")" href="@Url.Action("Index","Settings")">@Icons.Render("settings", 19)<span>Definições</span></a>
+            <div class="side-version" title="Versão da aplicação">@Ui.AppVersion</div>
         </div>
     </aside>
 

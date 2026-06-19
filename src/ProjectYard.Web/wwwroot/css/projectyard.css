@@ -670,3 +670,7 @@ input, textarea, select { font-family: inherit; }
 .py-notif__ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
 .py-notif__foot { display: block; text-align: center; padding: 11px; font-size: 12.5px; font-weight: 700; color: var(--primary-700); text-decoration: none; }
 .py-notif__foot:hover { background: var(--surface-2); }
+
+/* Versão da app (fundo da sidebar) */
+.side-version { padding: 8px 14px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; color: var(--text-3); opacity: .7; text-align: center; }
+.nav-collapsed .side-version { display: none; }

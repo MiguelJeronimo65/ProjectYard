@@ -8,6 +8,12 @@ public static class Ui
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-PT");
     private static readonly string[] Mon = { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
 
+    /// <summary>Versão da aplicação (InformationalVersion do .csproj, sem o sufixo +hash). Ex.: "v0.9.0 · 14 Jun 2026".</summary>
+    public static string AppVersion { get; } = "v" + (
+        System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Ui).Assembly)
+            ?.InformationalVersion ?? "0.9.0").Split('+')[0];
+
     public static string Eur(decimal? n) => (n ?? 0m).ToString("#,##0", Pt) + " €";
 
     /// <summary>€840k / €12,9k — inteiro acima de 100k, 1 casa abaixo (igual ao kk() do protótipo).</summary>
