@@ -588,6 +588,29 @@ CREATE TABLE events (
   CONSTRAINT fk_event_creator FOREIGN KEY (created_by)    REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================ COFRE DE ACESSOS
+
+-- Credenciais de portais (câmaras/entidades) usadas em licenciamento.
+-- A password é cifrada na app (ASP.NET Data Protection) — password_enc guarda o blob cifrado, nunca texto em claro.
+CREATE TABLE portal_credentials (
+  id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id    BIGINT NOT NULL,
+  name         VARCHAR(160) NOT NULL,
+  proc_number  VARCHAR(40)  NULL,
+  portal       VARCHAR(160) NULL,
+  url          VARCHAR(255) NULL,
+  username     VARCHAR(160) NULL,
+  password_enc TEXT NULL,
+  notes        VARCHAR(500) NULL,
+  project_id   BIGINT NULL,
+  created_by   BIGINT NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_pc_tenant (tenant_id),
+  CONSTRAINT fk_pc_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_pc_project FOREIGN KEY (project_id) REFERENCES projects(id),
+  CONSTRAINT fk_pc_user    FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================ CONFIGURAÇÃO
 
 -- Listas de lookup geridas por admin (Configurações Modelo: fases, prioridades, …)

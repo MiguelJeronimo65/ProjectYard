@@ -19,6 +19,7 @@ public partial class AppDbContext
     {
         modelBuilder.Entity<Approval>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Event>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<PortalCredential>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<ChatChannel>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<ChatMessage>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Client>().HasQueryFilter(e => BypassTenantFilter || e.TenantId == CurrentTenantId);

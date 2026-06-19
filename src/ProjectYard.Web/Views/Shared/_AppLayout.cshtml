@@ -76,6 +76,7 @@
             ("Gantt", "Cronograma global", "gantt", true, 0),
             ("Approvals", "Aprovações", "shield", true, apprBadge),
             ("Documents", "Documentos", "fileText", true, 0),
+            ("Credentials", "Acessos a portais", "lock", true, 0),
             ("Risks", "Riscos", "alert", true, 0),
         }),
     };
@@ -91,6 +92,7 @@
         foreach (var n in g.items)
         {
             if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) continue;
+            if (n.ctrl == "Credentials" && !(isSuper || role is "Owner" or "Administrador" or "Gestor")) continue;
             navScreens.Add(new { label = n.label, url = n.label == "Cronograma global" ? Url.Action("Global", "Gantt") : Url.Action("Index", n.ctrl), icon = n.icon });
         }
     navScreens.Add(new { label = "Definições", url = Url.Action("Index", "Settings"), icon = "settings" });
@@ -165,6 +167,8 @@
                 {
                     // Pagamentos só para quem gere faturação (matriz de permissões).
                     if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) { continue; }
+                    // Acessos a portais só para quem gere projetos (admin/gestor).
+                    if (n.ctrl == "Credentials" && !(isSuper || role is "Owner" or "Administrador" or "Gestor")) { continue; }
                     var isGlobalCrono = n.label == "Cronograma global";
                     var url = !n.built ? "#" : isGlobalCrono ? Url.Action("Global", "Gantt") : Url.Action("Index", n.ctrl);
                     var actAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";

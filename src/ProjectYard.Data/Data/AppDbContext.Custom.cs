@@ -17,8 +17,32 @@ public partial class AppDbContext
 
     public virtual DbSet<DeliverableVersion> DeliverableVersions { get; set; }
 
+    public virtual DbSet<PortalCredential> PortalCredentials { get; set; }
+
     private static void ConfigureCustom(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<PortalCredential>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("portal_credentials").UseCollation("utf8mb4_0900_ai_ci");
+            entity.HasIndex(e => e.TenantId, "ix_pc_tenant");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TenantId).HasColumnName("tenant_id");
+            entity.Property(e => e.Name).HasMaxLength(160).HasColumnName("name");
+            entity.Property(e => e.ProcNumber).HasMaxLength(40).HasColumnName("proc_number");
+            entity.Property(e => e.Portal).HasMaxLength(160).HasColumnName("portal");
+            entity.Property(e => e.Url).HasMaxLength(255).HasColumnName("url");
+            entity.Property(e => e.Username).HasMaxLength(160).HasColumnName("username");
+            entity.Property(e => e.PasswordEnc).HasColumnType("text").HasColumnName("password_enc");
+            entity.Property(e => e.Notes).HasMaxLength(500).HasColumnName("notes");
+            entity.Property(e => e.ProjectId).HasColumnName("project_id");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime").HasColumnName("created_at");
+            entity.HasOne(d => d.Project).WithMany().HasForeignKey(d => d.ProjectId).HasConstraintName("fk_pc_project");
+        });
+        modelBuilder.Entity<PortalCredential>().HasOne<Identity.ApplicationUser>().WithMany()
+            .HasForeignKey(e => e.CreatedBy).HasConstraintName("fk_pc_user").OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<DeliverableVersion>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");
