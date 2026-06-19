@@ -99,13 +99,6 @@
     var integrOn = P("tenant.integr", "Google Calendar,Microsoft 365,Autodesk Cloud,Twilio SMS")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
 
-    var subInvoices = new[]
-    {
-        ("PY-INV-0042", "01 Jun 2026", "Plano Pro · Mensal", "89,00 €"),
-        ("PY-INV-0039", "01 Mai 2026", "Plano Pro · Mensal", "89,00 €"),
-        ("PY-INV-0036", "01 Abr 2026", "Plano Pro · Mensal", "89,00 €"),
-        ("PY-INV-0033", "01 Mar 2026", "Plano Pro · Mensal", "89,00 €"),
-    };
 
     var apiKey = P("tenant.apikey");
     string apiKeyMasked = apiKey.Length > 14 ? apiKey[..12] + "••••••••••••" + apiKey[^4..] : "— ainda não gerada —";
@@ -370,36 +363,18 @@
 
             <div class="grid" style="grid-template-columns:320px 1fr;gap:20px;align-items:start;">
                 <div class="card card-pad">
-                    <div class="card-h" style="margin-bottom:18px;"><div><h3>Método de pagamento</h3></div></div>
-                    <div style="border-radius:var(--r);background:var(--grad);color:#fff;padding:18px;min-height:120px;display:flex;flex-direction:column;justify-content:space-between;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">@Icons.Render("card", 26)<span style="font-weight:700;font-size:13px;opacity:.85;">VISA</span></div>
-                        <div>
-                            <div class="num" style="font-size:17px;letter-spacing:0.12em;font-weight:600;">•••• •••• •••• 4218</div>
-                            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;opacity:.82;margin-top:6px;"><span>Ana Moreira</span><span>09/28</span></div>
-                        </div>
+                    <div class="card-h" style="margin-bottom:18px;align-items:flex-start;"><div><h3>Método de pagamento</h3></div><span class="badge b-amber card-h more" style="padding:1px 8px;font-size:10px;">em desenvolvimento</span></div>
+                    <div style="border-radius:var(--r);border:1.5px dashed var(--border-2);padding:18px;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;">
+                        @Icons.Render("card", 26)
+                        <div style="font-weight:700;font-size:13.5px;">Sem método de pagamento</div>
+                        <div class="muted-3" style="font-size:12px;font-weight:600;">Adicionas um cartão quando a subscrição estiver ativa.</div>
                     </div>
-                    <div class="muted-3" style="font-size:12.5px;font-weight:600;margin-top:12px;">Cobrança a 1 de cada mês. IVA incluído à taxa legal em vigor.</div>
-                    <div class="divider"></div>
-                    <button class="btn btn-ghost btn-sm" type="button" style="width:100%;justify-content:center;" onclick="PYToast && PYToast('Gestão de cartões — disponível com o billing real')">Alterar cartão</button>
+                    <div class="muted-3" style="font-size:12px;font-weight:600;margin-top:12px;">A faturação da subscrição (cobrança, IVA, recibos) chega com o billing.</div>
                 </div>
 
                 <div class="card card-pad">
-                    <div class="card-h" style="margin-bottom:14px;align-items:flex-start;"><div><h3>Histórico de faturas</h3><span class="sub" style="display:block;margin-top:3px;">Faturas da subscrição ProjectYard</span></div></div>
-                    <table class="tbl" style="margin-top:-4px;">
-                        <thead><tr><th>Fatura</th><th>Data</th><th>Plano</th><th>Valor</th><th></th></tr></thead>
-                        <tbody>
-                        @foreach (var (num, date, plan, amount) in subInvoices)
-                        {
-                            <tr>
-                                <td class="num" style="font-weight:700;">@num</td>
-                                <td class="muted" style="font-weight:600;">@date</td>
-                                <td style="font-weight:600;font-size:13.5px;">@plan</td>
-                                <td class="num" style="font-weight:700;">@amount</td>
-                                <td style="text-align:right;"><button class="btn btn-ghost btn-sm" type="button" onclick="PYToast && PYToast('PDF da fatura — disponível com o billing real')">@Icons.Render("download", 14) PDF</button></td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
+                    <div class="card-h" style="margin-bottom:14px;align-items:flex-start;"><div><h3>Histórico de faturas</h3><span class="sub" style="display:block;margin-top:3px;">Faturas da subscrição ProjectYard</span></div><span class="badge b-amber card-h more" style="padding:1px 8px;font-size:10px;">em desenvolvimento</span></div>
+                    <div class="empty" style="padding:40px 0;">@Icons.Render("fileText", 28)<div style="margin-top:10px;font-weight:700;color:var(--text-2);">Ainda sem faturas</div><div style="margin-top:4px;font-size:13px;">As faturas da tua subscrição aparecem aqui quando o billing entrar em vigor.</div></div>
                 </div>
             </div>
         }
