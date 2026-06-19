@@ -674,3 +674,10 @@ input, textarea, select { font-family: inherit; }
 /* Versão da app (fundo da sidebar) */
 .side-version { padding: 8px 14px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; color: var(--text-3); opacity: .7; text-align: center; }
 .nav-collapsed .side-version { display: none; }
+
+/* ===== Paleta de pesquisa global (overlay + card) ===== */
+.cmdk-ov { position: fixed; inset: 0; z-index: 1200; background: rgba(20,26,33,.42); backdrop-filter: blur(2px);
+  display: none; align-items: flex-start; justify-content: center; padding-top: 12vh; }
+.cmdk-ov.open { display: flex; }
+.cmdk-card { width: 580px; max-width: 92vw; padding: 0; overflow: hidden; box-shadow: var(--sh-lg, var(--sh-md)); }
+.cmdk-item { text-decoration: none; cursor: pointer; }

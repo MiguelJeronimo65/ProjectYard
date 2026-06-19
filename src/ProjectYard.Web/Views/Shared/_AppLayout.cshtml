@@ -79,6 +79,25 @@
             ("Risks", "Riscos", "alert", true, 0),
         }),
     };
+
+    // Ecrãs para a paleta ⌘K (navegação instantânea, sem ir à BD).
+    var navScreens = new List<object>();
+    if (isSuper)
+    {
+        navScreens.Add(new { label = "Workspaces", url = Url.Action("Index", "Workspaces"), icon = "building" });
+        navScreens.Add(new { label = "Conformidade RGPD", url = Url.Action("Index", "Compliance"), icon = "shield" });
+    }
+    foreach (var g in groups)
+        foreach (var n in g.items)
+        {
+            if (n.ctrl == "Payments" && !(isSuper || role is "Owner" or "Administrador")) continue;
+            navScreens.Add(new { label = n.label, url = n.label == "Cronograma global" ? Url.Action("Global", "Gantt") : Url.Action("Index", n.ctrl), icon = n.icon });
+        }
+    navScreens.Add(new { label = "Definições", url = Url.Action("Index", "Settings"), icon = "settings" });
+
+    // Ícones (SVG) usados pela paleta ⌘K, para o JS desenhar os resultados.
+    var cmdIconNames = new[] { "grid", "folder", "checkSquare", "gantt", "calendar", "clock", "users", "layers", "card", "message", "mail", "sms", "trend", "shield", "fileText", "alert", "building", "settings", "search" };
+    var cmdIcons = cmdIconNames.ToDictionary(n => n, n => Icons.Render(n, 17).ToString());
 }
 <!DOCTYPE html>
 <html lang="pt">
@@ -177,9 +196,9 @@
     <div class="main">
         <header class="topbar">
             <button class="icon-btn menu-btn" type="button" onclick="toggleNav(true)" aria-label="Menu">@Icons.Render("menu", 20)</button>
-            <button class="search" type="button" style="cursor:default;text-align:left;">
+            <button class="search" type="button" style="text-align:left;cursor:pointer;" onclick="pyOpenCmd()">
                 @Icons.Render("search", 18)
-                <input placeholder="Procurar projetos, tarefas, documentos…" readonly style="cursor:default;" />
+                <input placeholder="Procurar projetos, tarefas, documentos…" readonly tabindex="-1" style="cursor:pointer;pointer-events:none;" />
                 <kbd style="font-size:11px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:6px;padding:2px 6px;">⌘K</kbd>
             </button>
             <div class="topbar__right">
@@ -283,6 +302,77 @@
         document.getElementById('sideBackdrop').style.display = open ? 'block' : 'none';
     }
 
+    // ===== Paleta de pesquisa global (⌘K) =====
+    var PY_SCREENS = @Html.Raw(Json.Serialize(navScreens));
+    var PY_ICONS = @Html.Raw(Json.Serialize(cmdIcons));
+    var pyCmdSel = 0, pyCmdFlat = [], pyCmdTimer = null;
+
+    function pyOpenCmd() {
+        document.getElementById('pyCmdOv').classList.add('open');
+        var inp = document.getElementById('pyCmdInput');
+        inp.value = ''; pyCmdRender('');
+        setTimeout(function () { inp.focus(); }, 20);
+    }
+    function pyCloseCmd() { document.getElementById('pyCmdOv').classList.remove('open'); }
+
+    function pyCmdRender(q, dataGroups) {
+        var groups = [];
+        var nq = (q || '').toLowerCase();
+        var screens = nq ? PY_SCREENS.filter(function (s) { return s.label.toLowerCase().indexOf(nq) >= 0; }) : PY_SCREENS;
+        if (screens.length) groups.push({ label: 'Ir para', items: screens.map(function (s) { return { text: s.label, sub: '', url: s.url, icon: s.icon }; }) });
+        (dataGroups || []).forEach(function (g) { groups.push(g); });
+
+        pyCmdFlat = [];
+        groups.forEach(function (g) { g.items.forEach(function (it) { pyCmdFlat.push(it); }); });
+        if (pyCmdSel >= pyCmdFlat.length) pyCmdSel = 0;
+
+        var html = '';
+        if (pyCmdFlat.length === 0) { html = '<div class="cmdk-empty">Sem resultados' + (q ? ' para “' + q + '”' : '') + '.</div>'; }
+        var fi = 0;
+        groups.forEach(function (g) {
+            html += '<div class="cmdk-sec">' + g.label + '</div>';
+            g.items.forEach(function (it) {
+                var on = fi === pyCmdSel ? ' on' : '';
+                html += '<a class="cmdk-item' + on + '" href="' + it.url + '" data-i="' + fi + '">'
+                    + '<span class="cmdk-ico">' + (PY_ICONS[it.icon] || PY_ICONS.search) + '</span>'
+                    + '<span style="flex:1;min-width:0;"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + pyEsc(it.text) + '</span></span>'
+                    + (it.sub ? '<span class="cmdk-k">' + pyEsc(it.sub) + '</span>' : '') + '</a>';
+                fi++;
+            });
+        });
+        document.getElementById('pyCmdList').innerHTML = html;
+    }
+    function pyEsc(s) { return (s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+    function pyCmdInputChanged() {
+        var q = document.getElementById('pyCmdInput').value.trim();
+        pyCmdSel = 0;
+        pyCmdRender(q);
+        clearTimeout(pyCmdTimer);
+        if (q.length < 2) return;
+        pyCmdTimer = setTimeout(function () {
+            fetch('/Search/Query?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (j) { if (document.getElementById('pyCmdOv').classList.contains('open')) pyCmdRender(q, j.groups); })
+                .catch(function () { });
+        }, 180);
+    }
+    document.addEventListener('keydown', function (e) {
+        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); pyOpenCmd(); return; }
+        var ov = document.getElementById('pyCmdOv');
+        if (!ov || !ov.classList.contains('open')) return;
+        if (e.key === 'Escape') { pyCloseCmd(); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); pyCmdSel = Math.min(pyCmdFlat.length - 1, pyCmdSel + 1); pyCmdHighlight(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); pyCmdSel = Math.max(0, pyCmdSel - 1); pyCmdHighlight(); }
+        else if (e.key === 'Enter') { e.preventDefault(); var it = pyCmdFlat[pyCmdSel]; if (it) location.href = it.url; }
+    });
+    function pyCmdHighlight() {
+        document.querySelectorAll('#pyCmdList .cmdk-item').forEach(function (el) {
+            var on = +el.dataset.i === pyCmdSel; el.classList.toggle('on', on);
+            if (on) el.scrollIntoView({ block: 'nearest' });
+        });
+    }
+
     // Toast ligeiro global (disponível em todos os ecrãs).
     window.PYToast = window.PYToast || function (msg) {
         var t = document.createElement('div');
@@ -293,6 +383,17 @@
         setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 250); }, 2600);
     };
 </script>
+@* ===== Paleta de pesquisa global (⌘K) ===== *@
+<div class="cmdk-ov" id="pyCmdOv" onmousedown="if(event.target===this)pyCloseCmd()">
+    <div class="cmdk-card card">
+        <div class="cmdk-input">
+            @Icons.Render("search", 20)
+            <input id="pyCmdInput" placeholder="Procurar projetos, tarefas, clientes, documentos…" oninput="pyCmdInputChanged()" autocomplete="off" />
+            <kbd style="font-size:11px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:6px;padding:2px 7px;">esc</kbd>
+        </div>
+        <div class="cmdk-list" id="pyCmdList"></div>
+    </div>
+</div>
 @await Html.PartialAsync("_Loader")
 </body>
 </html>
