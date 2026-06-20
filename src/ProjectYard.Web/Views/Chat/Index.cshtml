@@ -13,10 +13,22 @@
     string ChanColor(ChatChannel c) => Components.Color(c.Name ?? "d" + c.Id);
     var channels = threads.Where(t => t.Channel.Type == "channel").ToList();
     var directs = threads.Where(t => t.Channel.Type == "direct").ToList();
+    var team = (List<ChatMemberVm>)(ViewBag.Team ?? new List<ChatMemberVm>());
+    var chProjects = (List<ChatProjectVm>)(ViewBag.ChannelProjects ?? new List<ChatProjectVm>());
+    var selMembers = (List<ChatMemberVm>)(ViewBag.SelectedMembers ?? new List<ChatMemberVm>());
+    // Contactos sem conversa direta aberta (para iniciar uma nova).
+    var dmNames = directs.Select(d => d.OtherNames.FirstOrDefault()).Where(n => n != null).ToHashSet();
+    var contacts = team.Where(p => !dmNames.Contains(p.Name)).ToList();
 }
 <div class="content">
     <div class="page-head">
         <div><h1>Chat</h1><p>Canais por projeto e mensagens diretas · isolado por workspace</p></div>
+        @if (team.Count > 0)
+        {
+            <div class="page-head__actions">
+                <button class="btn btn-primary" type="button" onclick="chNewOpen()">@Icons.Render("plus", 16) Novo canal</button>
+            </div>
+        }
     </div>
 
     <div class="card" style="overflow:hidden;display:grid;grid-template-columns:320px 1fr;height:620px;">
@@ -61,6 +73,24 @@
                         </div>
                     </a>
                 }
+                @if (contacts.Count > 0)
+                {
+                    <div class="nav-label" style="padding:12px 16px 5px;">Contactos</div>
+                    @foreach (var p in contacts)
+                    {
+                        <form class="py-thread" data-name="@p.Name" asp-action="StartDirect" method="post" style="margin:0;">
+                            <input type="hidden" name="userId" value="@p.Id" />
+                            <button type="submit" style="width:100%;display:flex;gap:12px;align-items:center;padding:10px 16px;border:none;border-bottom:1px solid var(--border);background:transparent;text-align:left;cursor:pointer;color:inherit;">
+                                @Components.Avatar(p.Name, 36)
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@p.Name</div>
+                                    <div class="muted-3" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@p.Funcao</div>
+                                </div>
+                                <span style="color:var(--text-3);flex-shrink:0;">@Icons.Render("message", 16)</span>
+                            </button>
+                        </form>
+                    }
+                }
             </div>
         </div>
 
@@ -81,7 +111,15 @@
                         <div style="font-weight:700;font-size:14.5px;">@selected.DisplayName</div>
                         <div class="muted-3" style="font-size:12.5px;font-weight:600;">@(selected.Channel.Type == "channel" ? $"{selected.AllNames.Count} participantes · {selected.Channel.Project?.Code ?? "geral"}" : "online")</div>
                     </div>
-                    @Components.AvStack(selected.AllNames, 4, 26)
+                    <button type="button" class="icon-btn" style="width:38px;height:38px;" title="Procurar na conversa" onclick="chConvSearch()">@Icons.Render("search", 18)</button>
+                    <button type="button" title="@(selected.Channel.Type == "channel" ? "Participantes" : "Contacto")" onclick="chInfoOpen()" style="border:none;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;">@Components.AvStack(selected.AllNames, 4, 26)</button>
+                </div>
+
+                @* ===== Pesquisa na conversa ===== *@
+                <div id="chConvSearch" style="display:none;padding:10px 18px;border-bottom:1px solid var(--border);background:var(--surface);align-items:center;gap:10px;">
+                    <div class="search" style="flex:1;">@Icons.Render("search", 15)<input id="chConvTerm" placeholder="Destacar nesta conversa…" oninput="chSearch(this.value)" /></div>
+                    <span id="chSearchCount" class="muted-3" style="font-size:12px;font-weight:700;min-width:80px;text-align:right;"></span>
+                    <button type="button" class="icon-btn" style="width:34px;height:34px;" onclick="chConvSearch(true)" title="Fechar pesquisa">@Icons.Render("x", 16)</button>
                 </div>
 
                 @if (pinned.Count > 0)
@@ -147,7 +185,7 @@
                                         {
                                             <span title="Fixada" style="position:absolute;top:-7px;@(mine ? "left:-7px;" : "right:-7px;")width:20px;height:20px;border-radius:99px;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:var(--sh-sm);">@Icons.Render("pin", 11)</span>
                                         }
-                                        @m.Body
+                                        <span class="chat-text" data-raw="@m.Body">@m.Body</span>
                                     </div>
                                     if (mine)
                                     {
@@ -224,7 +262,80 @@
         }
     </div>
 </div>
+
+@* ===== Modal participantes / contacto ===== *@
+@if (selected != null)
+{
+    var other = selMembers.FirstOrDefault(m => m.Id != me);
+    <div class="modal-overlay" id="chInfoOv" style="display:none;" onmousedown="if(event.target===this)chInfoClose()">
+        <div class="modal-card" style="width:440px;">
+            <div class="modal-head">
+                <div>
+                    <h3>@selected.DisplayName</h3>
+                    <p>@(selected.Channel.Type == "channel" ? $"{selMembers.Count} participantes · {selected.Channel.Project?.Name ?? "sem projeto"}" : (other?.Funcao ?? "Conversa direta"))</p>
+                </div>
+                <button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="chInfoClose()">@Icons.Render("x", 18)</button>
+            </div>
+            <div class="modal-body">
+                @if (selected.Channel.Type == "channel")
+                {
+                    @foreach (var p in selMembers)
+                    {
+                        <div style="display:flex;align-items:center;gap:12px;padding:8px 2px;">
+                            @Components.Avatar(p.Name, 38)
+                            <div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:13.5px;">@p.Name</div><div class="muted-3" style="font-size:12px;font-weight:600;">@p.Funcao</div></div>
+                            @if (p.Id != me)
+                            {
+                                <form asp-action="StartDirect" method="post" style="margin:0;"><input type="hidden" name="userId" value="@p.Id" /><button class="btn btn-ghost btn-sm" type="submit">@Icons.Render("message", 14) Mensagem</button></form>
+                            }
+                            else
+                            {
+                                <span class="badge b-gray" style="font-size:10.5px;">Eu</span>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+                        @Components.Avatar(other?.Name, 56)
+                        <div><div style="font-weight:700;font-size:16px;">@(other?.Name)</div><div class="muted-3" style="font-size:13px;font-weight:600;">@(other?.Funcao)</div></div>
+                    </div>
+                    <div class="muted-3" style="font-size:12.5px;font-weight:600;line-height:1.6;">Conversa direta privada — visível apenas para os dois participantes.</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* ===== Modal novo canal ===== *@
+@if (team.Count > 0)
+{
+    <div class="modal-overlay" id="chNewOv" style="display:none;" onmousedown="if(event.target===this)chNewClose()">
+        <div class="modal-card" style="width:480px;">
+            <div class="modal-head"><div><h3>Novo canal</h3><p>Espaço de conversa ligado a um projeto</p></div><button class="icon-btn" type="button" style="width:36px;height:36px;" onclick="chNewClose()">@Icons.Render("x", 18)</button></div>
+            <form asp-action="CreateChannel" method="post">
+                <div class="modal-body">
+                    <div class="fld"><label>Nome do canal</label><div class="fld__box" style="height:46px;"><span style="color:var(--text-3);font-weight:800;font-size:16px;">#</span><input name="name" required placeholder="ex.: execucao-fachada" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;color:var(--text);margin-left:6px;" /></div></div>
+                    <div class="fld"><label>Projeto associado (opcional)</label><div class="fld__box" style="height:46px;"><select name="projectId" style="border:none;outline:none;background:transparent;flex:1;font-size:14px;font-weight:600;color:var(--text);"><option value="">— sem projeto —</option>@foreach (var p in chProjects) { <option value="@p.Id">@p.Code · @p.Name</option> }</select></div></div>
+                    <div class="fld"><label>Participantes</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                            @foreach (var p in team)
+                            {
+                                <label class="chip" style="gap:8px;cursor:pointer;"><input type="checkbox" name="memberIds" value="@p.Id" style="accent-color:var(--primary);" /> @p.Name.Split(' ')[0]</label>
+                            }
+                        </div>
+                        <div class="muted-3" style="font-size:11.5px;font-weight:600;margin-top:7px;">És adicionado automaticamente.</div>
+                    </div>
+                </div>
+                <div class="modal-foot"><button class="btn btn-ghost" type="button" onclick="chNewClose()">Cancelar</button><button class="btn btn-primary" type="submit">@Icons.Render("plus", 15) Criar canal</button></div>
+            </form>
+        </div>
+    </div>
+}
 <style>
+    .chat-hl { background: var(--accent-soft2); color: inherit; border-radius: 3px; padding: 0 2px; }
+    .py-hidden { display: none !important; }
     .chat-msg .chat-acts { position: relative; align-self: center; display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
     .chat-msg:hover .chat-acts, .chat-acts.open { opacity: 1; }
     .chat-acts-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-3); display: grid; place-items: center; cursor: pointer; }
@@ -254,7 +365,7 @@
     var sc = document.getElementById('chatScroll'); if (sc) sc.scrollTop = sc.scrollHeight;
     function filterThreads(q) {
         q = q.toLowerCase();
-        document.querySelectorAll('.py-thread').forEach(t => t.style.display = t.dataset.name.toLowerCase().includes(q) ? '' : 'none');
+        document.querySelectorAll('.py-thread').forEach(t => t.classList.toggle('py-hidden', !(t.dataset.name || '').toLowerCase().includes(q)));
     }
     function pyClosePops() {
         document.querySelectorAll('.chat-pop.open').forEach(p => p.classList.remove('open'));
@@ -277,4 +388,40 @@
     document.addEventListener('click', function (e) {
         if (!e.target.closest('.chat-acts')) pyClosePops();
     });
+
+    // ----- Pesquisa na conversa (destaque client-side) -----
+    function chEsc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function chConvSearch(forceClose) {
+        var bar = document.getElementById('chConvSearch'); if (!bar) return;
+        var show = forceClose ? false : bar.style.display === 'none';
+        bar.style.display = show ? 'flex' : 'none';
+        var t = document.getElementById('chConvTerm');
+        if (show) { if (t) t.focus(); }
+        else if (t) { t.value = ''; chSearch(''); }
+    }
+    function chSearch(q) {
+        var ql = (q || '').trim().toLowerCase(), n = 0, first = null;
+        document.querySelectorAll('#chatScroll .chat-text').forEach(function (el) {
+            var raw = el.dataset.raw || '';
+            if (!ql) { el.textContent = raw; return; }
+            var low = raw.toLowerCase(), out = '', i = 0, idx, hit = false;
+            while ((idx = low.indexOf(ql, i)) >= 0) {
+                out += chEsc(raw.slice(i, idx)) + '<mark class="chat-hl">' + chEsc(raw.slice(idx, idx + ql.length)) + '</mark>';
+                i = idx + ql.length; n++; hit = true;
+            }
+            out += chEsc(raw.slice(i));
+            el.innerHTML = out;
+            if (hit && !first) first = el;
+        });
+        var c = document.getElementById('chSearchCount');
+        if (c) c.textContent = ql ? (n + ' resultado' + (n === 1 ? '' : 's')) : '';
+        if (first) first.scrollIntoView({ block: 'center' });
+    }
+
+    // ----- Modais -----
+    function chInfoOpen() { var o = document.getElementById('chInfoOv'); if (o) o.style.display = 'grid'; }
+    function chInfoClose() { var o = document.getElementById('chInfoOv'); if (o) o.style.display = 'none'; }
+    function chNewOpen() { var o = document.getElementById('chNewOv'); if (o) { o.style.display = 'grid'; setTimeout(function () { var i = o.querySelector('input[name=name]'); if (i) i.focus(); }, 20); } }
+    function chNewClose() { var o = document.getElementById('chNewOv'); if (o) o.style.display = 'none'; }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { chInfoClose(); chNewClose(); chConvSearch(true); } });
 </script>

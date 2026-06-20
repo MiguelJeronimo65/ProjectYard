@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectYard.Data.Data;
@@ -93,6 +94,28 @@ public class ChatController : Controller
             selected.Unread = 0;
         }
 
+        // Participantes do canal selecionado (modal de participantes / contacto).
+        if (selected != null)
+            ViewBag.SelectedMembers = members
+                .Where(m => m.ChannelId == selected.Channel.Id)
+                .Select(m => new ChatMemberVm { Id = m.UserId, Name = m.User.Name, Funcao = m.User.Funcao })
+                .OrderBy(m => m.Name).ToList();
+
+        // Equipa (contactos / iniciar DM) e projetos (novo canal) — só com tenant ativo.
+        if (_db.CurrentTenantId is { } myTenant)
+        {
+            ViewBag.Team = await _db.Users
+                .Where(u => u.TenantId == myTenant && u.Active && u.Id != me)
+                .OrderBy(u => u.Name)
+                .Select(u => new ChatMemberVm { Id = u.Id, Name = u.Name, Funcao = u.Funcao })
+                .ToListAsync();
+            ViewBag.ChannelProjects = await _db.Projects
+                .Where(p => p.TenantId == myTenant)
+                .OrderBy(p => p.Code)
+                .Select(p => new ChatProjectVm { Id = p.Id, Code = p.Code, Name = p.Name })
+                .ToListAsync();
+        }
+
         ViewBag.Threads = threads;
         ViewBag.Selected = selected;
         ViewBag.Messages = msgs;
@@ -101,6 +124,70 @@ public class ChatController : Controller
         ViewBag.PinnedMessages = msgs.Where(m => m.Pinned && m.DeletedAt == null).ToList();
         ViewBag.Me = me;
         return View();
+    }
+
+    /// <summary>Criar canal de equipa ligado a um projeto (INSERT canal + membros, sem alteração de esquema).</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateChannel(string name, long? projectId, long[] memberIds)
+    {
+        var me = CurrentUserId();
+        if (_db.CurrentTenantId is not { } tid || string.IsNullOrWhiteSpace(name))
+            return RedirectToAction(nameof(Index));
+
+        // Nome normalizado como no protótipo: minúsculas, espaços → hífen.
+        var slug = Regex.Replace(name.Trim().ToLowerInvariant(), @"\s+", "-");
+
+        long? projId = null;
+        if (projectId is { } pid && await _db.Projects.AnyAsync(p => p.Id == pid && p.TenantId == tid))
+            projId = pid;
+
+        var ch = new ChatChannel { TenantId = tid, Type = "channel", Name = slug, ProjectId = projId, RetentionMonths = 12, CreatedAt = DateTime.Now };
+        _db.ChatChannels.Add(ch);
+        await _db.SaveChangesAsync();
+
+        // Membros: eu + selecionados válidos (mesma equipa), sem duplicados.
+        var ids = (memberIds ?? Array.Empty<long>()).Append(me).Distinct().ToList();
+        var valid = await _db.Users.Where(u => ids.Contains(u.Id) && u.TenantId == tid).Select(u => u.Id).ToListAsync();
+        if (!valid.Contains(me)) valid.Add(me);
+        foreach (var uid in valid.Distinct())
+            _db.Add(new ChatChannelMember { ChannelId = ch.Id, UserId = uid, LastReadAt = DateTime.Now });
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Index), new { c = ch.Id });
+    }
+
+    /// <summary>Abrir (ou criar) conversa direta 1:1 com um colega de equipa.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> StartDirect(long userId)
+    {
+        var me = CurrentUserId();
+        if (userId == me || _db.CurrentTenantId is not { } tid)
+            return RedirectToAction(nameof(Index));
+        if (!await _db.Users.AnyAsync(u => u.Id == userId && u.TenantId == tid))
+            return RedirectToAction(nameof(Index));
+
+        // Conversa direta existente = canal direto deste tenant com exatamente os dois.
+        var existing = await _db.ChatChannels
+            .Where(c => c.Type == "direct" && c.TenantId == tid)
+            .Where(c => _db.Set<ChatChannelMember>().Count(m => m.ChannelId == c.Id) == 2
+                     && _db.Set<ChatChannelMember>().Any(m => m.ChannelId == c.Id && m.UserId == me)
+                     && _db.Set<ChatChannelMember>().Any(m => m.ChannelId == c.Id && m.UserId == userId))
+            .Select(c => (long?)c.Id)
+            .FirstOrDefaultAsync();
+
+        if (existing is null)
+        {
+            var ch = new ChatChannel { TenantId = tid, Type = "direct", RetentionMonths = 12, CreatedAt = DateTime.Now };
+            _db.ChatChannels.Add(ch);
+            await _db.SaveChangesAsync();
+            _db.Add(new ChatChannelMember { ChannelId = ch.Id, UserId = me, LastReadAt = DateTime.Now });
+            _db.Add(new ChatChannelMember { ChannelId = ch.Id, UserId = userId });
+            await _db.SaveChangesAsync();
+            existing = ch.Id;
+        }
+        return RedirectToAction(nameof(Index), new { c = existing });
     }
 
     private static readonly string[] AllowedEmoji = { "👍", "❤️", "✅", "🎉", "👀", "🙌" };

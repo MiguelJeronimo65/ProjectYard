@@ -22,3 +22,19 @@ public class ChatReactionVm
     public bool Mine { get; set; }
     public List<string> Names { get; set; } = new();
 }
+
+/// <summary>Participante de um canal / contacto da equipa (modal de participantes, novo canal, iniciar DM).</summary>
+public class ChatMemberVm
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? Funcao { get; set; }
+}
+
+/// <summary>Projeto do tenant — alvo do dropdown "projeto associado" ao criar canal.</summary>
+public class ChatProjectVm
+{
+    public long Id { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+}
