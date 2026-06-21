@@ -2,6 +2,7 @@
 @{
     Layout = null;
     ViewData["Title"] = "Entrar";
+    ViewData["ForceSplash"] = true; // o login é a porta de entrada: mostra sempre o splash (a app mantém 1x/sessão)
 }
 <!DOCTYPE html>
 <html lang="pt">
@@ -57,7 +58,7 @@
             <h1 class="display login__title">Bem-vindo de volta</h1>
             <p class="muted login__sub">Inicia sessão para continuar a gerir os teus projetos.</p>
 
-            <form asp-controller="Account" asp-action="Login" method="post">
+            <form asp-controller="Account" asp-action="Login" method="post" id="loginForm">
                 <input type="hidden" asp-for="ReturnUrl" />
                 <div asp-validation-summary="ModelOnly" class="login__error"></div>
 
@@ -91,5 +92,20 @@
     </div>
 </div>
 @await Html.PartialAsync("_Loader")
+<script>
+    // No login, mostra o loader de marca (logótipo + anel) durante a entrada — com um mínimo para não "piscar".
+    (function () {
+        var f = document.getElementById('loginForm');
+        if (!f) return;
+        f.addEventListener('submit', function (e) {
+            if (f.dataset.going) return;            // 2.ª passagem (submit programático): deixa seguir
+            if (typeof f.checkValidity === 'function' && !f.checkValidity()) return; // campos inválidos → validação nativa
+            e.preventDefault();
+            if (window.PYLoader) window.PYLoader.show();
+            f.dataset.going = '1';
+            setTimeout(function () { f.submit(); }, 600);
+        });
+    })();
+</script>
 </body>
 </html>

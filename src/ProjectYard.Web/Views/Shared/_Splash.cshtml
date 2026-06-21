@@ -1,6 +1,7 @@
 @* Splash de arranque (SPEC-splash-loader.md) — mostrado UMA vez por sessão de browser.
    Decisão server-side via cookie de sessão "py_splash" para não haver flash da app antes do JS. *@
-@if (!Context.Request.Cookies.ContainsKey("py_splash"))
+@{ var forceSplash = ViewData["ForceSplash"] as bool? ?? false; }
+@if (forceSplash || !Context.Request.Cookies.ContainsKey("py_splash"))
 {
     <div class="py-splash" id="pySplash" role="status" aria-live="polite">
         <div class="py-splash__bg">
