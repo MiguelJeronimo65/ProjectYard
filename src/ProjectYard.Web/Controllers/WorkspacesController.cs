@@ -76,6 +76,29 @@ public class WorkspacesController : Controller
             "text/csv", "projectyard-workspaces.csv");
     }
 
+    /// <summary>Redefinir a password de um utilizador (superadmin). Sem email configurado, é a única via de recuperação.
+    /// Devolve JSON com a nova password temporária (mostrada uma vez; partilhar em segurança).</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(long? userId, string? email)
+    {
+        _db.BypassTenantFilter = true;
+        var user = userId is { } id
+            ? await _users.FindByIdAsync(id.ToString())
+            : (string.IsNullOrWhiteSpace(email) ? null : await _users.FindByEmailAsync(email));
+        if (user is null) return Json(new { ok = false, error = "Utilizador não encontrado." });
+
+        var temp = "Py#" + Guid.NewGuid().ToString("N")[..6] + "A9";
+        var token = await _users.GeneratePasswordResetTokenAsync(user);
+        var res = await _users.ResetPasswordAsync(user, token, temp);
+        if (!res.Succeeded)
+            return Json(new { ok = false, error = string.Join("; ", res.Errors.Select(e => e.Description)) });
+
+        _logger.LogWarning("AUDITORIA plataforma: superadmin {User} redefiniu a password de {Target} ({Email}).",
+            User.Identity?.Name, user.Name, user.Email);
+        return Json(new { ok = true, email = user.Email, name = user.Name, password = temp });
+    }
+
     [HttpGet]
     public IActionResult Create() => View(new CreateWorkspaceViewModel());
 
