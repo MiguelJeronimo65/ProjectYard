@@ -25,3 +25,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.swp
+
+# ---- conteúdo de runtime (uploads de logótipos/fotos) ----
+src/ProjectYard.Web/wwwroot/uploads/
+
+# ---- dados de cliente (não versionar no repo de código) ----
+Docs/*.xlsx
